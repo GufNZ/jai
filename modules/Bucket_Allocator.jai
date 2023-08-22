@@ -1,3 +1,4 @@
+#import "Basic";
 /*
 //TODO: docs
 //TEST: this
@@ -20,10 +21,12 @@ realloc:
 */
 
 // Defaults are 1MiB each size.  Not sure if that makes sense yet.
+//QUESTION: should SIZES_CONFIG be a module or a program param?
 #module_parameters ()(SIZES_CONFIG := int.[65536, 32768, 16384, 8192, 4096, 2048, 1024, 512, 256], USE_UNMAPPING_ALLOCATOR := false, HONOUR_REALLOC_SHRINK := false, RECORD_STATS := false);
 
 bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s64, old_memory: *void, allocator_data: *void) -> *void {
 	bucketAllocator := cast(*BucketAllocator)allocator_data;
+
 	if #complete mode == {
 		case .ALLOCATE; #through;
 		case .RESIZE;
@@ -32,20 +35,15 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 			free(bucketAllocator, old_memory);
 			return null;
 
-		case .STARTUP;
-			init(bucketAllocator);
-			return null;
+		case .STARTUP;	#through;
 		case .SHUTDOWN;
-			deInit(bucketAllocator);
 			return null;
 
-		case .THREAD_START;
-			assert(false, "Threading not supported yet.");
+		case .THREAD_START;	#through;
 		case .THREAD_STOP;
 			assert(false, "Threading not supported yet.");
 
-		case .CREATE_HEAP;
-			assert(false, "Heaps not supported.");
+		case .CREATE_HEAP;	#through;
 		case .DESTROY_HEAP;
 			assert(false, "Heaps not supported.");
 
@@ -56,39 +54,56 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 			if old_memory {
 				cast(*string)old_memory.* = CAPS_VERSION_STRING;
 			}
-			return cast(*void)(Allocator_Caps.FREE|.IS_THIS_YOURS);
+			return cast(*void)(Allocator_Caps.FREE|.ACTUALLY_RESIZE|.IS_THIS_YOURS);
 	}
 
 	assert(false, "unreachable");
 }
 
 #if RECORD_STATS {
-	printStats :: (using bucketAllocator: BucketAllocator) {
+	printStats :: (using bucketAllocator: BucketAllocator, compact := false) {
 		using Basic :: #import "Basic";
 		print("BucketAllocator @%\n", formatInt(*bucketAllocator, base=16));
-		// :MetaSizing Can we be smarter about this with #insert?
-		for 4..12 {
-			print("  Size: %\n", it);
-			print("    Allocated : %\n", stats[it].allocated);
-			print("    Freed     : %\n", stats[it].freed);
-			print("    High Water: %\n", stats[it].highWaterMark);
-			print("    LIMIT     : %\n", SIZES_CONFIG[it]);
-			print("      %%       : %\n", (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
-			print("    Reallocate:\n");
-			print("      Requested: %\n", stats[it].reallocateRequests);
-			print("      NOPs     : %\n", stats[it].reallocateRequests - (stats[it].reallocateGrowsNeeded + stats[it].reallocateShrinksNeeded));
-			print("      Grows    : %\n", stats[it].reallocateGrowsNeeded);
-			#if HONOUR_REALLOC_SHRINK {
-				print("      Shrinks  : %\n", stats[it].reallocateShrinksNeeded);
+		if (compact) {
+			// :MetaSizing Can we be smarter about this with #insert?
+			for 4..12 {
+				print("  %: %/% = %4%%\n", it, stats[it].highWaterMark, SIZES_CONFIG[it], (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
+			}
+		} else {
+			// :MetaSizing Can we be smarter about this with #insert?
+			for 4..12 {
+				print("  Size: %\n", it);
+				print("    Allocated : %\n", stats[it].allocated);
+				print("    Freed     : %\n", stats[it].freed);
+				print("    High Water: %\n", stats[it].highWaterMark);
+				print("    LIMIT     : %\n", SIZES_CONFIG[it]);
+				print("      %%       : %\n", (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
+				print("    Reallocate:\n");
+				print("      Requested: %\n", stats[it].reallocateRequests);
+				print("      NOPs     : %\n", stats[it].reallocateRequests - (stats[it].reallocateGrowsNeeded + stats[it].reallocateShrinksNeeded));
+				print("      Grows    : %\n", stats[it].reallocateGrowsNeeded);
+				#if HONOUR_REALLOC_SHRINK {
+					print("      Shrinks  : %\n", stats[it].reallocateShrinksNeeded);
+				}
 			}
 		}
 	}
 }
 
-#scope_file
+makeBucketAllocator :: () -> Allocator {
+	ba := New(BucketAllocator);
+	init(ba);
+	return .{ proc = bucket_allocator_proc, data = xx ba };
+}
+
+freeBucketAllocator :: (a: Allocator) {
+	assert(a.proc == bucket_allocator_proc && a.data, "Not a BucketAllocator!");
+	ba: cast(*BucketAllocator) a.data;
+	deInit(ba);
+}
 
 init :: (using bucketAllocator: *BucketAllocator) {
-	assert(!allocator, "Already initialised!");
+	assert(allocator.proc == null, "Already initialised!");
 	assert(context.allocator.proc != bucket_allocator_proc, "Can't allocate off ourselves!");
 	allocator = context.allocator;
 
@@ -117,9 +132,10 @@ init :: (using bucketAllocator: *BucketAllocator) {
 }
 
 deInit :: (using bucketAllocator: *BucketAllocator) {
-	Basic :: #import "Basic";
-	Basic.free(bucketAllocator, allocator);
+	free(bucketAllocator, allocator);
 }
+
+#scope_file
 
 allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requestedSize: s64, oldSize: s64, oldMemory: *void) -> *void {
 	size := calculateSize(requestedSize);
@@ -127,7 +143,7 @@ allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requ
 
 	if mode == .RESIZE {
 		oldSize := findBucket(bucketAllocator, oldMemory);
-		assert(oldSize, "Not our memory!");
+		assert(oldSize > 0, "Not our memory!");
 		#if RECORD_STATS {
 			stats[size].reallocateReqiests += 1;
 		}
@@ -174,7 +190,7 @@ calculateSize :: (requestedSize: s64) -> int {
 	return size;
 }
 
-allocateNew :: (using bucketAllocator: *BucketAllocator, $size: int) -> BucketItemRef(size) {
+allocateNew :: (using bucketAllocator: *BucketAllocator, size: int) -> BucketItemRef(size) {
 	// :MetaSizing Can we be smarter about this with #insert?
 	assert(size < 12, "Too Big!");
 
@@ -204,17 +220,22 @@ free :: (using bucketAllocator: *BucketAllocator, oldMemory: *void) {
 		stats[size].freed += 1;
 	}
 	oldSize := findBucket(bucketAllocator, oldMemory);
-	assert(oldSize, "Not our memory!");
-	bucket = cast(Bucket(oldSize)) buckets[oldSize];
+	assert(oldSize > 0, "Not our memory!");
+	bucket := cast(Bucket(oldSize)) buckets[oldSize];
 	unallocRef(bucket, oldMemory);
 }
 
 findBucket :: (using bucketAllocator: *BucketAllocator, memory: *void) -> int {
+	testBucket :: ($size: int, memory: *void) -> bool {
+		bucket := cast(BucketSet(size)) buckets[it - 4];
+		//TEST: this end logic:
+		return memory >= *bucket.items[0] && memory < *bucket.items[0] + SIZES_CONFIG[it];
+	}
+
 	// :MetaSizing Can we be smarter about this with #insert?
 	for 4..12 {
-		bucket = cast(BucketSet(it)) buckets[it - 4];
-		//TEST: this end logic:
-		if memory >= *bucket.items[0] && memory < *bucket.items[0] + SIZES_CONFIG[it] {
+		test := #bake_arguments testBucket(size = it);
+		if (test(memory)) {
 			return it;
 		}
 	}
