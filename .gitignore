@@ -1,0 +1,12 @@
+/.build
+/bin
+/CHANGELOG.txt
+/editor_support
+/examples
+/how_to
+/macos_de-quarantine.sh
+/modules
+/README.txt
+/redist
+*.exe
+*.pdb
