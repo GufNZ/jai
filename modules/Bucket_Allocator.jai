@@ -15,18 +15,17 @@ free:
 realloc:
 	alloc, copy, freeOld.
 
-//LATER: stats, logging?, //MAYBE: extra storage when full (iff RECORD_STATS?)?
+//LATER: logging?, //MAYBE: extra storage when full (iff RECORD_STATS?)?
 
 */
 
 // Defaults are 1MiB each size.  Not sure if that makes sense yet.
-//TODO: Implement RECORD_STATS so users can better know how to configure this...
-#module_parameters ()(SIZES_CONFIG = int.[65536, 32768, 16384, 8192, 4096, 2048, 1024, 512, 256], USE_UNMAPPING_ALLOCATOR := false, RECORD_STATS := false);
+#module_parameters ()(SIZES_CONFIG := int.[65536, 32768, 16384, 8192, 4096, 2048, 1024, 512, 256], USE_UNMAPPING_ALLOCATOR := false, HONOUR_REALLOC_SHRINK := false, RECORD_STATS := false);
 
 bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s64, old_memory: *void, allocator_data: *void) -> *void {
 	bucketAllocator := cast(*BucketAllocator)allocator_data;
 	if #complete mode == {
-		case .ALLOCATE; #through
+		case .ALLOCATE; #through;
 		case .RESIZE;
 			return allocate(bucketAllocator, mode, requested_size, old_size, old_memory);
 		case .FREE;
@@ -54,18 +53,43 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 			return cast(*void) cast(s64) (findBucket(bucketAllocator, old_memory) > 0);
 
 		case .CAPS;
-			if old_memory { <<cast(*string)old_memory = CAPS_VERSION_STRING; }
+			if old_memory {
+				cast(*string)old_memory.* = CAPS_VERSION_STRING;
+			}
 			return cast(*void)(Allocator_Caps.FREE|.IS_THIS_YOURS);
 	}
 
 	assert(false, "unreachable");
 }
 
+#if RECORD_STATS {
+	printStats :: (using bucketAllocator: BucketAllocator) {
+		using Basic :: #import "Basic";
+		print("BucketAllocator @%\n", formatInt(*bucketAllocator, base=16));
+		// :MetaSizing Can we be smarter about this with #insert?
+		for 4..12 {
+			print("  Size: %\n", it);
+			print("    Allocated : %\n", stats[it].allocated);
+			print("    Freed     : %\n", stats[it].freed);
+			print("    High Water: %\n", stats[it].highWaterMark);
+			print("    LIMIT     : %\n", SIZES_CONFIG[it]);
+			print("      %%       : %\n", (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
+			print("    Reallocate:\n");
+			print("      Requested: %\n", stats[it].reallocateRequests);
+			print("      NOPs     : %\n", stats[it].reallocateRequests - (stats[it].reallocateGrowsNeeded + stats[it].reallocateShrinksNeeded));
+			print("      Grows    : %\n", stats[it].reallocateGrowsNeeded);
+			#if HONOUR_REALLOC_SHRINK {
+				print("      Shrinks  : %\n", stats[it].reallocateShrinksNeeded);
+			}
+		}
+	}
+}
+
 #scope_file
 
-init(using bucketAllocator: *BucketAllocator) {
+init :: (using bucketAllocator: *BucketAllocator) {
 	assert(!allocator, "Already initialised!");
-	assert(context.allocator.proc != bucket_allocator_proc)
+	assert(context.allocator.proc != bucket_allocator_proc, "Can't allocate off ourselves!");
 	allocator = context.allocator;
 
 	//QUESTION: :MetaSizing Can we be smarter about this with #insert?
@@ -92,12 +116,53 @@ init(using bucketAllocator: *BucketAllocator) {
 	}
 }
 
-deInit(using bucketAllocator: *BucketAllocator) {
+deInit :: (using bucketAllocator: *BucketAllocator) {
 	Basic :: #import "Basic";
 	Basic.free(bucketAllocator, allocator);
 }
 
-allocate(using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requestedSize: s64, oldSize: s64, oldMemory: *void) -> *void {
+allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requestedSize: s64, oldSize: s64, oldMemory: *void) -> *void {
+	size := calculateSize(requestedSize);
+	ref: BucketItemRef;
+
+	if mode == .RESIZE {
+		oldSize := findBucket(bucketAllocator, oldMemory);
+		assert(oldSize, "Not our memory!");
+		#if RECORD_STATS {
+			stats[size].reallocateReqiests += 1;
+		}
+
+		#if HONOUR_REALLOC_SHRINK {
+			if oldSize == size {
+				return oldMemory;
+			}
+		} else {
+			if oldSize >= size {
+				return oldMemory;
+			}
+		}
+
+
+		#if RECORD_STATS {
+			if oldSize < size {
+				stats[size].reallocateGrowsNeeded += 1;
+			} else {
+				stats[size].reallocateShrinksNeeded += 1;
+			}
+		}
+		ref = allocateNew(bucketAllocator, size);
+
+		bucket = cast(Bucket(oldSize)) buckets[oldSize];
+		oldRef := unallocRef(bucket, oldMemory);
+		memcpy(ref.item, oldRef.item, 1<<oldSize);	// @Speed: if the requested size lots smaller than bucket's size we are copying more than we need.  Not sure we care.
+	} else {
+		ref = allocateNew(bucketAllocator, size);
+	}
+
+	return ref.item;
+}
+
+calculateSize :: (requestedSize: s64) -> int {
 	//TODO: #asm to find the top bit...
 	size := 4;
 	length := 1<<size;
@@ -106,48 +171,63 @@ allocate(using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requeste
 		length <<= 1;
 	}
 
+	return size;
+}
+
+allocateNew :: (using bucketAllocator: *BucketAllocator, $size: int) -> BucketItemRef(size) {
 	// :MetaSizing Can we be smarter about this with #insert?
 	assert(size < 12, "Too Big!");
 
+	#if RECORD_STATS {
+		stats[size].allocated += 1;
+		mark := stats[size].allocated - stats[size].freed;
+		if mark > stats[size].highWaterMark {
+			stats[size].highWaterMark = mark;
+		}
+	}
+
 	bucket := cast(Bucket(size)) buckets[size - 4];
 	ref := bucket.freeList;
-	if !ref  return null;
+	if !ref {
+		return null;
+	}
+
 
 	ref.next = usedList;
 	usedList = *ref;
 
-	if (mode == .RESIZE) {
-		oldSize := findBucket(bucketAllocator, oldMemory);
-		assert(oldSize, "Not our memory!");
-		bucket = cast(Bucket(oldSize)) buckets[oldSize];
-		oldRef := unallocRef(bucket, oldMemory);
-		memcpy(ref.item, oldRef.item, 1<<oldSize);	// @Speed: if the requested size lots smaller than bucket's size we are copying more than we need.  Not sure we care.
-	}
-
-	return ref.item;
+	return ref;
 }
 
-free(using bucketAllocator: *BucketAllocator, oldMemory: *void) {
+free :: (using bucketAllocator: *BucketAllocator, oldMemory: *void) {
+	#if RECORD_STATS {
+		stats[size].freed += 1;
+	}
 	oldSize := findBucket(bucketAllocator, oldMemory);
 	assert(oldSize, "Not our memory!");
 	bucket = cast(Bucket(oldSize)) buckets[oldSize];
 	unallocRef(bucket, oldMemory);
 }
 
-findBucket(using bucketAllocator: *BucketAllocator, memory: *void) -> int {
+findBucket :: (using bucketAllocator: *BucketAllocator, memory: *void) -> int {
 	// :MetaSizing Can we be smarter about this with #insert?
 	for 4..12 {
 		bucket = cast(BucketSet(it)) buckets[it - 4];
 		//TEST: this end logic:
-		if memory >= *bucket.items[0] && memory < *bucket.items[0] + SIZES_CONFIG[it]  return it;
+		if memory >= *bucket.items[0] && memory < *bucket.items[0] + SIZES_CONFIG[it] {
+			return it;
+		}
 	}
+
+
 	return 0;
 }
 
-unallocRef(using bucket: *Bucket($T), memory: *void) -> *BucketRef(T) {
+unallocRef :: (using bucket: *BucketSet($T), memory: *void) -> *BucketItemRef(T) {
 	// @Speed: finding the allocated bucket is O(n)...
+	prev: *BucketItemRef(T);
 	ref := usedList;
-	prev: *BucketRef(T);
+
 	assert(ref, "Nothing allocated here!");
 	while (ref && memory != xx ref.item) {
 		prev = ref;
@@ -186,7 +266,10 @@ BucketAllocator :: struct {
 	size10Bucket := BucketSet(size = 10, length = SIZES_CONFIG[6]);
 	size11Bucket := BucketSet(size = 11, length = SIZES_CONFIG[7]);
 	size12Bucket := BucketSet(size = 12, length = SIZES_CONFIG[8]);
-	buckets : [9] *BucketSet;
+	buckets: [9] *BucketSet;
+	#if RECORD_STATS {
+		stats: [9] BucketStats;
+	}
 }
 
 BucketSet :: struct(size := 4, length := 256) {
@@ -204,4 +287,13 @@ BucketItemRef :: struct(size := 4) {
 //QUESTION: do I need this or can I inline it..?
 BucketItem :: struct(size := 4) {
 	data := [1 << size] u8;
+}
+
+BucketStats :: struct {
+	allocated: int;
+	reallocateReqiests: int;
+	reallocateGrowsNeeded: int;
+	reallocateShrinksNeeded: int;
+	freed: int;
+	highWaterMark: int;
 }
