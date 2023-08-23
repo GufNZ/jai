@@ -109,16 +109,7 @@ init :: (using bucketAllocator: *BucketAllocator) {
 	assert(context.allocator.proc != bucket_allocator_proc, "Can't allocate off ourselves!");
 	allocator = context.allocator;
 
-	//QUESTION: :MetaSizing Can we be smarter about this with #insert?
-	initBucket(*size4Bucket);
-	initBucket(*size5Bucket);
-	initBucket(*size6Bucket);
-	initBucket(*size7Bucket);
-	initBucket(*size8Bucket);
-	initBucket(*size9Bucket);
-	initBucket(*size10Bucket);
-	initBucket(*size11Bucket);
-	initBucket(*size12Bucket);
+	#insert #run generateSizeCalls("\tinitBucket(*size%Bucket);\n");
 }
 
 deInit :: (using bucketAllocator: *BucketAllocator) {
@@ -196,30 +187,11 @@ calculateSize :: (requestedSize: s64) -> int {
 }
 
 allocateNew :: inline (using bucketAllocator: *BucketAllocator, size: int) -> *BucketItemRef {
-	if size == {
-		// :MetaSizing Can we be smarter about this with #insert?
-		case 4;
-			return allocateNew(bucketAllocator, *size4Bucket);
-		case 5;
-			return allocateNew(bucketAllocator, *size5Bucket);
-		case 6;
-			return allocateNew(bucketAllocator, *size6Bucket);
-		case 7;
-			return allocateNew(bucketAllocator, *size7Bucket);
-		case 8;
-			return allocateNew(bucketAllocator, *size8Bucket);
-		case 9;
-			return allocateNew(bucketAllocator, *size9Bucket);
-		case 10;
-			return allocateNew(bucketAllocator, *size10Bucket);
-		case 11;
-			return allocateNew(bucketAllocator, *size11Bucket);
-		case 12;
-			return allocateNew(bucketAllocator, *size12Bucket);
-		case;
-			assert(false, "Bad size %!", size);
-			return null;
-	}
+	#insert #run generateSizeCalls(
+		preamble="\tif size == {\n",
+		format="\t\tcase %1;\n\t\t\treturn allocateNew(bucketAllocator, *size%1Bucket);\n",
+		postamble="\n\t\tcase;\n\t\t\tassert(false, \"Bad size %%!\", size);\n\t\t\treturn null;\n\t}\n"
+	);
 }
 
 allocateNew :: (using bucketAllocator: *BucketAllocator, bucket: *BucketSet($S, $L)) -> *BucketItemRef {
@@ -268,16 +240,7 @@ findBucket :: (using bucketAllocator: *BucketAllocator, memory: *void, newSize: 
 		}
 	}
 
-	// :MetaSizing Can we be smarter about this with #insert?
-	testBucket(memory, *size4Bucket);
-	testBucket(memory, *size5Bucket);
-	testBucket(memory, *size6Bucket);
-	testBucket(memory, *size7Bucket);
-	testBucket(memory, *size8Bucket);
-	testBucket(memory, *size9Bucket);
-	testBucket(memory, *size10Bucket);
-	testBucket(memory, *size11Bucket);
-	testBucket(memory, *size12Bucket);
+	#insert #run generateSizeCalls("\ttestBucket(memory, *size%Bucket);\n");
 
 	return 0, null;
 }
@@ -310,21 +273,39 @@ unallocateRef :: (using bucket: *BucketSet($S, $L), memory: *void) -> *BucketIte
 	return ref;
 }
 
+generateSizeCalls :: (format: string, preamble := "", postamble := "") -> string {
+	builder: String_Builder;
+
+	print_to_builder(*builder, preamble);
+
+	for 4..SIZES_CONFIG.count+3 {
+		print_to_builder(*builder, format, it);
+	}
+
+	print_to_builder(*builder, postamble);
+
+	return builder_to_string(*builder);
+}
+
+generateSizeFields :: (format: string) -> string {
+	builder: String_Builder;
+	size := 4;
+
+	for SIZES_CONFIG {
+		print_to_builder(*builder, format, size, it);
+		size += 1;
+	}
+
+	return builder_to_string(*builder);
+}
+
 #scope_export
 
 BucketAllocator :: struct {
 	allocator: Allocator;
 
-	// :MetaSizing Can we be smarter about this with #insert?
-	size4Bucket: BucketSet(size = 4, length = SIZES_CONFIG[0]);
-	size5Bucket: BucketSet(size = 5, length = SIZES_CONFIG[1]);
-	size6Bucket: BucketSet(size = 6, length = SIZES_CONFIG[2]);
-	size7Bucket: BucketSet(size = 7, length = SIZES_CONFIG[3]);
-	size8Bucket: BucketSet(size = 8, length = SIZES_CONFIG[4]);
-	size9Bucket: BucketSet(size = 9, length = SIZES_CONFIG[5]);
-	size10Bucket: BucketSet(size = 10, length = SIZES_CONFIG[6]);
-	size11Bucket: BucketSet(size = 11, length = SIZES_CONFIG[7]);
-	size12Bucket: BucketSet(size = 12, length = SIZES_CONFIG[8]);
+	#insert #run generateSizeFields("\tsize%1Bucket: BucketSet(size = %1, length = %2);\n");
+
 	#if RECORD_STATS {
 		stats: [9] BucketStats;
 	}
