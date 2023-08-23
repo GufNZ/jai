@@ -34,7 +34,7 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 		case .FREE;
 			free(bucketAllocator, old_memory);
 			#if USE_UNMAPPING_ALLOCATOR {
-				assert(old_memory.* == 0xCC, "Didn't wipe on free correctly!");
+				assert((cast(*u8)old_memory).* == 0xCC, "Didn't wipe on free correctly!");
 			}
 			return null;
 
@@ -148,7 +148,7 @@ allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requ
 		oldSize, oldRef := findBucket(bucketAllocator, oldMemory, requestedSize);
 		assert(oldSize > 0, "Not our memory!");
 		#if RECORD_STATS {
-			index :: size - 4;
+			index := size - 4;
 			stats[index].reallocateReqiests += 1;
 		}
 
@@ -217,11 +217,11 @@ allocateNew :: (using bucketAllocator: *BucketAllocator, bucket: *BucketSet($S, 
 }
 
 free :: (using bucketAllocator: *BucketAllocator, oldMemory: *void) {
-	#if RECORD_STATS {
-		stats[size].freed += 1;
-	}
 	oldSize := findBucket(bucketAllocator, oldMemory, -1);
 	assert(oldSize > 0, "Not our memory!");
+	#if RECORD_STATS {
+		stats[oldSize - 4].freed += 1;
+	}
 }
 
 findBucket :: (using bucketAllocator: *BucketAllocator, memory: *void, newSize: int = 0) -> int, *BucketItemRef {

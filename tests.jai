@@ -1,5 +1,5 @@
 #import "Basic";
-#import "Bucket_Allocator"()();
+#import "Bucket_Allocator"()(USE_UNMAPPING_ALLOCATOR = true, HONOUR_REALLOC_SHRINK = true, RECORD_STATS = true);
 
 main :: () {
 	print("Jai Tests\n");
