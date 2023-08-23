@@ -33,6 +33,9 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 			return allocate(bucketAllocator, mode, requested_size, old_size, old_memory);
 		case .FREE;
 			free(bucketAllocator, old_memory);
+			#if USE_UNMAPPING_ALLOCATOR {
+				assert(old_memory.* == 0xCC, "Didn't wipe on free correctly!");
+			}
 			return null;
 
 		case .STARTUP;	#through;
@@ -41,7 +44,7 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 
 		case .THREAD_START;	#through;
 		case .THREAD_STOP;
-			assert(false, "Threading not supported yet.");
+			assert(false, "Threading not supported [yet?].");
 
 		case .CREATE_HEAP;	#through;
 		case .DESTROY_HEAP;
@@ -52,12 +55,13 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 
 		case .CAPS;
 			if old_memory {
-				cast(*string)old_memory.* = CAPS_VERSION_STRING;
+				(cast(*string)old_memory).* = CAPS_VERSION_STRING;
 			}
 			return cast(*void)(Allocator_Caps.FREE|.ACTUALLY_RESIZE|.IS_THIS_YOURS);
 	}
 
 	assert(false, "unreachable");
+	return null;
 }
 
 #if RECORD_STATS {
@@ -65,14 +69,12 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 		using Basic :: #import "Basic";
 		print("BucketAllocator @%\n", formatInt(*bucketAllocator, base=16));
 		if (compact) {
-			// :MetaSizing Can we be smarter about this with #insert?
-			for 4..12 {
-				print("  %: %/% = %4%%\n", it, stats[it].highWaterMark, SIZES_CONFIG[it], (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
+			for 0..SIZES_CONFIG.count - 1 {
+				print("  %: %/% = %4%%\n", it + 4, stats[it].highWaterMark, SIZES_CONFIG[it], (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
 			}
 		} else {
-			// :MetaSizing Can we be smarter about this with #insert?
-			for 4..12 {
-				print("  Size: %\n", it);
+			for 0..SIZES_CONFIG.count - 1 {
+				print("  Size: %\n", it + 4);
 				print("    Allocated : %\n", stats[it].allocated);
 				print("    Freed     : %\n", stats[it].freed);
 				print("    High Water: %\n", stats[it].highWaterMark);
@@ -108,27 +110,15 @@ init :: (using bucketAllocator: *BucketAllocator) {
 	allocator = context.allocator;
 
 	//QUESTION: :MetaSizing Can we be smarter about this with #insert?
-	buckets[0] = xx *size4Bucket;
-	buckets[1] = xx *size5Bucket;
-	buckets[2] = xx *size6Bucket;
-	buckets[3] = xx *size7Bucket;
-	buckets[4] = xx *size8Bucket;
-	buckets[5] = xx *size9Bucket;
-	buckets[6] = xx *size10Bucket;
-	buckets[7] = xx *size11Bucket;
-	buckets[8] = xx *size12Bucket;
-
-	// :MetaSizing Can we be smarter about this with #insert?
-	for 4..12 {
-		bucket = cast(*BucketSet(size=it)) buckets[it - 4];
-		for < SIZE_CONFIG[it]..0 {
-			ref := bucket.refs[it];
-			ref.item = *bucket.items[it];
-			ref.next = bucket.freeList;
-			bucket.freeList = *ref;
-		}
-		bucket.usedList = null;
-	}
+	initBucket(*size4Bucket);
+	initBucket(*size5Bucket);
+	initBucket(*size6Bucket);
+	initBucket(*size7Bucket);
+	initBucket(*size8Bucket);
+	initBucket(*size9Bucket);
+	initBucket(*size10Bucket);
+	initBucket(*size11Bucket);
+	initBucket(*size12Bucket);
 }
 
 deInit :: (using bucketAllocator: *BucketAllocator) {
@@ -137,40 +127,55 @@ deInit :: (using bucketAllocator: *BucketAllocator) {
 
 #scope_file
 
+CAPS_VERSION_STRING :: "Bucket_Allocator v0.8";
+
+initBucket :: (bucket: *BucketSet($S, $L)) {
+	for < L - 1..0 {
+		ref := bucket.refs[it];
+		ref.item = xx *bucket.items[it];
+		ref.next = bucket.freeList;
+		bucket.freeList = *ref;
+	}
+	bucket.usedList = null;
+}
+
+#if HONOUR_REALLOC_SHRINK {
+	reallocShouldNotMove :: (size: int, oldSize: int) -> bool {
+		return oldSize == size;
+	}
+} else {
+	reallocShouldNotMove :: (size: int, oldSize: int) -> bool {
+		return oldSize >= size;
+	}
+}
+
 allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requestedSize: s64, oldSize: s64, oldMemory: *void) -> *void {
 	size := calculateSize(requestedSize);
-	ref: BucketItemRef;
+	ref: *BucketItemRef;
 
 	if mode == .RESIZE {
-		oldSize := findBucket(bucketAllocator, oldMemory);
+		oldSize, oldRef := findBucket(bucketAllocator, oldMemory, requestedSize);
 		assert(oldSize > 0, "Not our memory!");
 		#if RECORD_STATS {
-			stats[size].reallocateReqiests += 1;
+			index :: size - 4;
+			stats[index].reallocateReqiests += 1;
 		}
 
-		#if HONOUR_REALLOC_SHRINK {
-			if oldSize == size {
-				return oldMemory;
-			}
-		} else {
-			if oldSize >= size {
-				return oldMemory;
-			}
+		if reallocShouldNotMove(size, oldSize) {
+			return oldMemory;
 		}
 
 
 		#if RECORD_STATS {
 			if oldSize < size {
-				stats[size].reallocateGrowsNeeded += 1;
+				stats[index].reallocateGrowsNeeded += 1;
 			} else {
-				stats[size].reallocateShrinksNeeded += 1;
+				stats[index].reallocateShrinksNeeded += 1;
 			}
 		}
 		ref = allocateNew(bucketAllocator, size);
 
-		bucket = cast(Bucket(oldSize)) buckets[oldSize];
-		oldRef := unallocRef(bucket, oldMemory);
-		memcpy(ref.item, oldRef.item, 1<<oldSize);	// @Speed: if the requested size lots smaller than bucket's size we are copying more than we need.  Not sure we care.
+		memcpy(ref.item, oldRef.item, 1<<min(size, oldSize));	// @Speed: if the requested size lots smaller than bucket's size we are copying more than we need.  Not sure we care.
 	} else {
 		ref = allocateNew(bucketAllocator, size);
 	}
@@ -190,27 +195,51 @@ calculateSize :: (requestedSize: s64) -> int {
 	return size;
 }
 
-allocateNew :: (using bucketAllocator: *BucketAllocator, size: int) -> BucketItemRef(size) {
-	// :MetaSizing Can we be smarter about this with #insert?
-	assert(size < 12, "Too Big!");
+allocateNew :: inline (using bucketAllocator: *BucketAllocator, size: int) -> *BucketItemRef {
+	if size == {
+		// :MetaSizing Can we be smarter about this with #insert?
+		case 4;
+			return allocateNew(bucketAllocator, *size4Bucket);
+		case 5;
+			return allocateNew(bucketAllocator, *size5Bucket);
+		case 6;
+			return allocateNew(bucketAllocator, *size6Bucket);
+		case 7;
+			return allocateNew(bucketAllocator, *size7Bucket);
+		case 8;
+			return allocateNew(bucketAllocator, *size8Bucket);
+		case 9;
+			return allocateNew(bucketAllocator, *size9Bucket);
+		case 10;
+			return allocateNew(bucketAllocator, *size10Bucket);
+		case 11;
+			return allocateNew(bucketAllocator, *size11Bucket);
+		case 12;
+			return allocateNew(bucketAllocator, *size12Bucket);
+		case;
+			assert(false, "Bad size %!", size);
+			return null;
+	}
+}
 
+allocateNew :: (using bucketAllocator: *BucketAllocator, bucket: *BucketSet($S, $L)) -> *BucketItemRef {
 	#if RECORD_STATS {
-		stats[size].allocated += 1;
-		mark := stats[size].allocated - stats[size].freed;
-		if mark > stats[size].highWaterMark {
-			stats[size].highWaterMark = mark;
+		index :: S - 4;
+		stats[index].allocated += 1;
+		mark := stats[index].allocated - stats[index].freed;
+		if mark > stats[index].highWaterMark {
+			stats[index].highWaterMark = mark;
 		}
 	}
 
-	bucket := cast(Bucket(size)) buckets[size - 4];
 	ref := bucket.freeList;
 	if !ref {
 		return null;
 	}
 
 
-	ref.next = usedList;
-	usedList = *ref;
+	ref.next = bucket.usedList;
+	bucket.usedList = ref;
 
 	return ref;
 }
@@ -219,42 +248,51 @@ free :: (using bucketAllocator: *BucketAllocator, oldMemory: *void) {
 	#if RECORD_STATS {
 		stats[size].freed += 1;
 	}
-	oldSize := findBucket(bucketAllocator, oldMemory);
+	oldSize := findBucket(bucketAllocator, oldMemory, -1);
 	assert(oldSize > 0, "Not our memory!");
-	bucket := cast(Bucket(oldSize)) buckets[oldSize];
-	unallocRef(bucket, oldMemory);
 }
 
-findBucket :: (using bucketAllocator: *BucketAllocator, memory: *void) -> int {
-	testBucket :: ($size: int, memory: *void) -> bool {
-		bucket := cast(BucketSet(size)) buckets[it - 4];
-		//TEST: this end logic:
-		return memory >= *bucket.items[0] && memory < *bucket.items[0] + SIZES_CONFIG[it];
-	}
+findBucket :: (using bucketAllocator: *BucketAllocator, memory: *void, newSize: int = 0) -> int, *BucketItemRef {
+	testBucket :: (memory: *void, bucket: *BucketSet($S, $L)) #expand {
+		itemSize :: 1 << S;
+		offset : s64 = cast(s64) *bucket.items[0] - cast(s64) memory;
+		inside := offset >= 0 && offset < itemSize * SIZES_CONFIG[S - 4];
+		if (inside) {
+			ref: *BucketItemRef;
+			assert(offset % itemSize == 0, "Don't free the middle of an item!");
+			if (`newSize < 0 || !reallocShouldNotMove(S, `newSize)) {
+				ref = unallocateRef(bucket, memory);
+			}
 
-	// :MetaSizing Can we be smarter about this with #insert?
-	for 4..12 {
-		test := #bake_arguments testBucket(size = it);
-		if (test(memory)) {
-			return it;
+			`return S, ref;
 		}
 	}
 
+	// :MetaSizing Can we be smarter about this with #insert?
+	testBucket(memory, *size4Bucket);
+	testBucket(memory, *size5Bucket);
+	testBucket(memory, *size6Bucket);
+	testBucket(memory, *size7Bucket);
+	testBucket(memory, *size8Bucket);
+	testBucket(memory, *size9Bucket);
+	testBucket(memory, *size10Bucket);
+	testBucket(memory, *size11Bucket);
+	testBucket(memory, *size12Bucket);
 
-	return 0;
+	return 0, null;
 }
 
-unallocRef :: (using bucket: *BucketSet($T), memory: *void) -> *BucketItemRef(T) {
+unallocateRef :: (using bucket: *BucketSet($S, $L), memory: *void) -> *BucketItemRef {
 	// @Speed: finding the allocated bucket is O(n)...
-	prev: *BucketItemRef(T);
+	prev: *BucketItemRef;
 	ref := usedList;
 
-	assert(ref, "Nothing allocated here!");
+	assert(ref != null, "Nothing allocated here!");
 	while (ref && memory != xx ref.item) {
 		prev = ref;
 		ref = ref.next;
 	}
-	assert(ref, "Didn't find the ref!");
+	assert(ref != null, "Didn't find the ref!");
 
 	if prev {
 		prev.next = ref.next;
@@ -266,7 +304,7 @@ unallocRef :: (using bucket: *BucketSet($T), memory: *void) -> *BucketItemRef(T)
 	freeList = ref;
 
 	#if USE_UNMAPPING_ALLOCATOR {
-		memset(ref.item, 0xCC, 1<<T);
+		memset(ref.item, 0xCC, 1<<S);
 	}
 
 	return ref;
@@ -278,36 +316,30 @@ BucketAllocator :: struct {
 	allocator: Allocator;
 
 	// :MetaSizing Can we be smarter about this with #insert?
-	size4Bucket := BucketSet(size = 4, length = SIZES_CONFIG[0]);
-	size5Bucket := BucketSet(size = 5, length = SIZES_CONFIG[1]);
-	size6Bucket := BucketSet(size = 6, length = SIZES_CONFIG[2]);
-	size7Bucket := BucketSet(size = 7, length = SIZES_CONFIG[3]);
-	size8Bucket := BucketSet(size = 8, length = SIZES_CONFIG[4]);
-	size9Bucket := BucketSet(size = 9, length = SIZES_CONFIG[5]);
-	size10Bucket := BucketSet(size = 10, length = SIZES_CONFIG[6]);
-	size11Bucket := BucketSet(size = 11, length = SIZES_CONFIG[7]);
-	size12Bucket := BucketSet(size = 12, length = SIZES_CONFIG[8]);
-	buckets: [9] *BucketSet;
+	size4Bucket: BucketSet(size = 4, length = SIZES_CONFIG[0]);
+	size5Bucket: BucketSet(size = 5, length = SIZES_CONFIG[1]);
+	size6Bucket: BucketSet(size = 6, length = SIZES_CONFIG[2]);
+	size7Bucket: BucketSet(size = 7, length = SIZES_CONFIG[3]);
+	size8Bucket: BucketSet(size = 8, length = SIZES_CONFIG[4]);
+	size9Bucket: BucketSet(size = 9, length = SIZES_CONFIG[5]);
+	size10Bucket: BucketSet(size = 10, length = SIZES_CONFIG[6]);
+	size11Bucket: BucketSet(size = 11, length = SIZES_CONFIG[7]);
+	size12Bucket: BucketSet(size = 12, length = SIZES_CONFIG[8]);
 	#if RECORD_STATS {
 		stats: [9] BucketStats;
 	}
 }
 
-BucketSet :: struct(size := 4, length := 256) {
-	items := [length] BucketItem(size);
-	refs := [length] BucketItemRef(size);
-	freeList: *BucketItemRef(size);
-	usedList: *BucketItemRef(size);
+BucketSet :: struct(size: int, length: int) {
+	items: [length] [1 << size] u8;
+	refs: [length] BucketItemRef;
+	freeList: *BucketItemRef;
+	usedList: *BucketItemRef;
 }
 
-BucketItemRef :: struct(size := 4) {
-	item: *BucketItem(size);
+BucketItemRef :: struct {
+	item: *u8;
 	next: *BucketItemRef;
-}
-
-//QUESTION: do I need this or can I inline it..?
-BucketItem :: struct(size := 4) {
-	data := [1 << size] u8;
 }
 
 BucketStats :: struct {
