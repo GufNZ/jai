@@ -65,8 +65,7 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 }
 
 #if RECORD_STATS {
-	printStats :: (using bucketAllocator: BucketAllocator, compact := false) {
-		using Basic :: #import "Basic";
+	printStats :: (using bucketAllocator: *BucketAllocator, compact := false) {
 		print("BucketAllocator @%\n", formatInt(*bucketAllocator, base=16));
 		if (compact) {
 			for 0..SIZES_CONFIG.count - 1 {
@@ -149,7 +148,7 @@ allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requ
 		assert(oldSize > 0, "Not our memory!");
 		#if RECORD_STATS {
 			index := size - 4;
-			stats[index].reallocateReqiests += 1;
+			stats[index].reallocateRequests += 1;
 		}
 
 		if reallocShouldNotMove(size, oldSize) {
@@ -325,7 +324,7 @@ BucketItemRef :: struct {
 
 BucketStats :: struct {
 	allocated: int;
-	reallocateReqiests: int;
+	reallocateRequests: int;
 	reallocateGrowsNeeded: int;
 	reallocateShrinksNeeded: int;
 	freed: int;
