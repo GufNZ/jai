@@ -22,7 +22,7 @@ realloc:
 
 // Defaults are 1MiB each size.  Not sure if that makes sense yet.
 //QUESTION: should SIZES_CONFIG be a module or a program param?
-#module_parameters ()(SIZES_CONFIG := int.[65536, 32768, 16384, 8192, 4096, 2048, 1024, 512, 256], USE_UNMAPPING_ALLOCATOR := false, HONOUR_REALLOC_SHRINK := false, RECORD_STATS := false);
+#module_parameters ()(SIZES_CONFIG : [..]int = .[65536, 32768, 16384, 8192, 4096, 2048, 1024, 512, 256], USE_UNMAPPING_ALLOCATOR := false, HONOUR_REALLOC_SHRINK := false, RECORD_STATS := false);
 
 bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s64, old_memory: *void, allocator_data: *void) -> *void {
 	bucketAllocator := cast(*BucketAllocator)allocator_data;
