@@ -17,6 +17,7 @@ realloc:
 	alloc, copy, freeOld.
 
 //LATER: logging?, //MAYBE: extra storage when full (iff RECORD_STATS?)?
+//QUESTION: should we (maybe via another param) support failing up if the requested size is full?
 
 */
 
@@ -69,7 +70,7 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 		print("BucketAllocator @%\n", formatInt(*bucketAllocator, base=16));
 		if (compact) {
 			for 0..SIZES_CONFIG.count - 1 {
-				print("  %: %/% = %4%%\n", it + 4, stats[it].highWaterMark, SIZES_CONFIG[it], (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
+				print("  %: %/% = %4%%\n", formatInt(it + 4, minimum_digits=2), stats[it].highWaterMark, SIZES_CONFIG[it], (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
 			}
 		} else {
 			for 0..SIZES_CONFIG.count - 1 {
