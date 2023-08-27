@@ -23,7 +23,7 @@ realloc:
 
 // Defaults are 1MiB each size.  Not sure if that makes sense yet.
 //QUESTION: should SIZES_CONFIG be a module or a program param?
-#module_parameters ()(SIZES_CONFIG : [..]int = .[65536, 32768, 16384, 8192, 4096, 2048, 1024, 512, 256], USE_UNMAPPING_ALLOCATOR := false, HONOUR_REALLOC_SHRINK := false, RECORD_STATS := false);
+#module_parameters ()(SIZES_CONFIG : [$N]int = .[65536, 32768, 16384, 8192, 4096, 2048, 1024, 512, 256], USE_UNMAPPING_ALLOCATOR := false, HONOUR_REALLOC_SHRINK := false, RECORD_STATS := false);
 
 bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s64, old_memory: *void, allocator_data: *void) -> *void {
 	bucketAllocator := cast(*BucketAllocator)allocator_data;
@@ -67,7 +67,7 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 
 #if RECORD_STATS {
 	printStats :: (using bucketAllocator: *BucketAllocator, compact := false) {
-		print("BucketAllocator @%\n", formatInt(*bucketAllocator, base=16));
+		print("BucketAllocator @%\n", bucketAllocator);
 		if (compact) {
 			for 0..SIZES_CONFIG.count - 1 {
 				print("  %: %/% = %4%%\n", formatInt(it + 4, minimum_digits=2), stats[it].highWaterMark, SIZES_CONFIG[it], (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
