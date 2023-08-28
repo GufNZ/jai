@@ -73,8 +73,10 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 				print("  %: %/% = %4%%\n", formatInt(it + 4, minimum_digits=2), stats[it].highWaterMark, SIZES_CONFIG[it], (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
 			}
 		} else {
+			baType: *Type_Info_Struct = xx type_info(BucketAllocator);
 			for 0..SIZES_CONFIG.count - 1 {
-				print("  Size: %\n", it + 4);
+				field := get_field(baType, tprint("size%Bucket", it + 4));
+				print("  Size: % (%..%)\n", it + 4, bucketAllocator + field.offset_in_bytes, bucketAllocator + field.offset_in_bytes + field.type.runtime_size - 1);
 				print("    Allocated : %\n", stats[it].allocated);
 				print("    Freed     : %\n", stats[it].freed);
 				print("    High Water: %\n", stats[it].highWaterMark);
@@ -118,14 +120,14 @@ deInit :: (using bucketAllocator: *BucketAllocator) {
 
 #scope_file
 
-CAPS_VERSION_STRING :: "Bucket_Allocator v0.8";
+CAPS_VERSION_STRING :: "Bucket_Allocator v1.0";
 
 initBucket :: (bucket: *BucketSet($S, $L)) {
 	for < L - 1..0 {
-		ref := bucket.refs[it];
+		ref := *bucket.refs[it];
 		ref.item = xx *bucket.items[it];
 		ref.next = bucket.freeList;
-		bucket.freeList = *ref;
+		bucket.freeList = ref;
 	}
 	bucket.usedList = null;
 }
@@ -175,6 +177,7 @@ allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requ
 }
 
 calculateSize :: (requestedSize: s64) -> int {
+	assert(requestedSize > 0, ifx requestedSize then "Can't allocate negative size!" else "Can't allocate 0 size!");
 	//TODO: #asm to find the top bit...
 	size := 4;
 	length := 1<<size;
@@ -210,6 +213,7 @@ allocateNew :: (using bucketAllocator: *BucketAllocator, bucket: *BucketSet($S, 
 	}
 
 
+	bucket.freeList = ref.next;
 	ref.next = bucket.usedList;
 	bucket.usedList = ref;
 
@@ -227,7 +231,7 @@ free :: (using bucketAllocator: *BucketAllocator, oldMemory: *void) {
 findBucket :: (using bucketAllocator: *BucketAllocator, memory: *void, newSize: int = 0) -> int, *BucketItemRef {
 	testBucket :: (memory: *void, bucket: *BucketSet($S, $L)) #expand {
 		itemSize :: 1 << S;
-		offset : s64 = cast(s64) *bucket.items[0] - cast(s64) memory;
+		offset : s64 = cast(s64) memory - cast(s64) *bucket.items[0];
 		inside := offset >= 0 && offset < itemSize * SIZES_CONFIG[S - 4];
 		if (inside) {
 			ref: *BucketItemRef;
@@ -302,7 +306,7 @@ generateSizeFields :: (format: string) -> string {
 #scope_export
 
 BucketAllocator :: struct {
-	allocator: Allocator;
+	#as allocator: Allocator;
 
 	#insert #run generateSizeFields("\tsize%1Bucket: BucketSet(size = %1, length = %2);\n");
 
