@@ -75,7 +75,7 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 		} else {
 			baType: *Type_Info_Struct = xx type_info(BucketAllocator);
 			for 0..SIZES_CONFIG.count - 1 {
-				field := get_field(baType, tprint("size%Bucket", it + 4));
+				field := get_field(baType, tprint("size%Bucket", formatInt(it + 4, 10, 0)));
 				print("  Size: % (%..%)\n", it + 4, bucketAllocator + field.offset_in_bytes, bucketAllocator + field.offset_in_bytes + field.type.runtime_size - 1);
 				print("    Allocated : %\n", stats[it].allocated);
 				print("    Freed     : %\n", stats[it].freed);
@@ -120,6 +120,9 @@ deInit :: (using bucketAllocator: *BucketAllocator) {
 
 #scope_file
 
+BucketSize :: #type,distinct u8;
+OldBucketSize :: #type,isa BucketSize;
+
 CAPS_VERSION_STRING :: "Bucket_Allocator v1.0";
 
 initBucket :: (bucket: *BucketSet($S, $L)) {
@@ -133,11 +136,11 @@ initBucket :: (bucket: *BucketSet($S, $L)) {
 }
 
 #if HONOUR_REALLOC_SHRINK {
-	reallocShouldNotMove :: (size: int, oldSize: int) -> bool {
+	reallocShouldNotMove :: (oldSize: OldBucketSize, size: BucketSize) -> bool {
 		return oldSize == size;
 	}
 } else {
-	reallocShouldNotMove :: (size: int, oldSize: int) -> bool {
+	reallocShouldNotMove :: (oldSize: OldBucketSize, size: BucketSize) -> bool {
 		return oldSize >= size;
 	}
 }
@@ -154,7 +157,7 @@ allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requ
 			stats[index].reallocateRequests += 1;
 		}
 
-		if reallocShouldNotMove(size, oldSize) {
+		if reallocShouldNotMove(oldSize, size) {
 			return oldMemory;
 		}
 
@@ -176,10 +179,10 @@ allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requ
 	return ref.item;
 }
 
-calculateSize :: (requestedSize: s64) -> int {
+calculateSize :: (requestedSize: s64) -> BucketSize {
 	assert(requestedSize > 0, ifx requestedSize then "Can't allocate negative size!" else "Can't allocate 0 size!");
 	//TODO: #asm to find the top bit...
-	size := 4;
+	size : BucketSize = 4;
 	length := 1<<size;
 	while length < requestedSize {
 		size += 1;
@@ -189,7 +192,7 @@ calculateSize :: (requestedSize: s64) -> int {
 	return size;
 }
 
-allocateNew :: inline (using bucketAllocator: *BucketAllocator, size: int) -> *BucketItemRef {
+allocateNew :: inline (using bucketAllocator: *BucketAllocator, size: BucketSize) -> *BucketItemRef {
 	#insert #run generateSizeCalls(
 		preamble="\tif size == {\n",
 		format="\t\tcase %1;\n\t\t\treturn allocateNew(bucketAllocator, *size%1Bucket);\n",
@@ -228,7 +231,7 @@ free :: (using bucketAllocator: *BucketAllocator, oldMemory: *void) {
 	}
 }
 
-findBucket :: (using bucketAllocator: *BucketAllocator, memory: *void, newSize: int = 0) -> int, *BucketItemRef {
+findBucket :: (using bucketAllocator: *BucketAllocator, memory: *void, newSize: int = 0) -> OldBucketSize, *BucketItemRef {
 	testBucket :: (memory: *void, bucket: *BucketSet($S, $L)) #expand {
 		itemSize :: 1 << S;
 		offset : s64 = cast(s64) memory - cast(s64) *bucket.items[0];
@@ -236,7 +239,7 @@ findBucket :: (using bucketAllocator: *BucketAllocator, memory: *void, newSize: 
 		if (inside) {
 			ref: *BucketItemRef;
 			assert(offset % itemSize == 0, "Don't free the middle of an item!");
-			if (`newSize < 0 || !reallocShouldNotMove(S, `newSize)) {
+			if (`newSize < 0 || !reallocShouldNotMove(S, calculateSize(`newSize))) {
 				ref = unallocateRef(bucket, memory);
 			}
 
@@ -293,7 +296,7 @@ generateSizeCalls :: (format: string, preamble := "", postamble := "") -> string
 
 generateSizeFields :: (format: string) -> string {
 	builder: String_Builder;
-	size := 4;
+	size : BucketSize = 4;
 
 	for SIZES_CONFIG {
 		print_to_builder(*builder, format, size, it);
@@ -311,7 +314,7 @@ BucketAllocator :: struct {
 	#insert #run generateSizeFields("\tsize%1Bucket: BucketSet(size = %1, length = %2);\n");
 
 	#if RECORD_STATS {
-		stats: [9] BucketStats;
+		stats: [SIZES_CONFIG.count] BucketStats;
 	}
 }
 
