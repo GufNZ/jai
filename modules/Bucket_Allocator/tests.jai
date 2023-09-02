@@ -8,6 +8,7 @@ main :: () {
 	newContext.allocator = makeBucketAllocator();
 
 	ba : *BucketAllocator = xx newContext.allocator.data;
+	printStats(ba, compact=true);
 	printStats(ba);
 	caps, name := get_capabilities(newContext.allocator);
 	print("\n%; %\n\n", name, caps);
@@ -48,6 +49,7 @@ main :: () {
 		print("\n");
 	}
 
+	printStats(ba, compact=true);
 	printStats(ba);
 	print("\n%\n\n", tests);
 }
@@ -63,30 +65,31 @@ tests :: Test.[
 	.{size = 8},		// 7
 	.{size = 9},		// 8
 	.{size = 10},		// 9
+	.{size = 16},		// A; will overflow to size5.
 	.{mode = .FREE, modifyIndex = 3},
 	.{mode = .FREE, modifyIndex = 7},
-	.{size = 11},		// C
-	.{size = 12},		// D
+	.{size = 11},		// D
+	.{size = 12},		// E
 	.{mode = .FREE, modifyIndex = 1},
-	.{size = 13},		// F
+	.{size = 13},		// 10
 	.{mode = .FREE, modifyIndex = 0},
-	.{size = 14},		// 11
+	.{size = 14},		// 12
 	.{mode = .FREE, modifyIndex = 2},
-	.{size = 15},		// 13
+	.{size = 15},		// 14
 	.{mode = .FREE, modifyIndex = 4},
 	.{mode = .FREE, modifyIndex = 9},
 	.{mode = .FREE, modifyIndex = 5},
 	.{mode = .FREE, modifyIndex = 6},
 	.{mode = .FREE, modifyIndex = 8},
-	.{size = 16},		// 19
-	.{size = 17},		// 1A
-	.{size = 18},		// 1B
-	.{size = 19},		// 1C
-	.{size = 60},		// 1D
-	.{mode = .RESIZE, size = 22, modifyIndex = 0x1A},	// 1E
-	.{mode = .RESIZE, size = 32, modifyIndex = 0x1B},	// 1F
-	.{mode = .RESIZE, size = 33, modifyIndex = 0x1C},	// 20
-	.{mode = .RESIZE, size = 30, modifyIndex = 0x1D},	// 21
+	.{size = 16},		// 1A
+	.{size = 17},		// 1B
+	.{size = 18},		// 1C
+	.{size = 19},		// 1D
+	.{size = 60},		// 1E
+	.{mode = .RESIZE, size = 22, modifyIndex = 0x1B},	// 1F
+	.{mode = .RESIZE, size = 32, modifyIndex = 0x1C},	// 20
+	.{mode = .RESIZE, size = 33, modifyIndex = 0x1D},	// 21
+	.{mode = .RESIZE, size = 30, modifyIndex = 0x1E},	// 22
 ];
 
 testAllocations :: () {

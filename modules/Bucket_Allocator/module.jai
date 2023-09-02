@@ -110,7 +110,7 @@
 	USE_UNMAPPING_ALLOCATOR := false,
 	HONOUR_REALLOC_SHRINK := false,
 	RECORD_STATS := false,
-	ALLOW_OVERFLOW := true;
+	ALLOW_OVERFLOW := true
 );
 
 bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s64, old_memory: *void, allocator_data: *void) -> *void {
@@ -279,14 +279,14 @@ allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requ
 				stats[index].reallocateShrinksNeeded += 1;
 			}
 		}
-		ref = allocateNew(bucketAllocator, size);
+		ref = doAllocateNew(bucketAllocator, size);
 
 		memcpy(ref.item, oldRef.item, 1<<min(size, oldSize));	// @Speed: if the requested size lots smaller than bucket's size we are copying more than we need.  Not sure we care.
 	} else {
-		ref = allocateNew(bucketAllocator, size);
+		ref = doAllocateNew(bucketAllocator, size);
 	}
 
-	return ref.item;
+	return ifx ref  ref.item else null;
 }
 
 #if ALLOW_OVERFLOW {
@@ -305,7 +305,7 @@ allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requ
 			log("BucketAllocator: Overflowed allocation of BucketSize % into size %!", origSize, size, flags = .WARNING);
 			#if RECORD_STATS {
 				for origSize - 4..size - 5 {
-					stats[it].overflows += 1;
+					bucketAllocator.stats[it].overflows += 1;
 				}
 			}
 		}
