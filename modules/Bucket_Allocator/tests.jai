@@ -4,7 +4,6 @@
 #run main();
 
 main :: () {
-	print("Jai Tests\n");
 	newContext := context;
 	newContext.allocator = makeBucketAllocator();
 

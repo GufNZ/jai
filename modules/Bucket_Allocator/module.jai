@@ -18,6 +18,8 @@
 
 	Allocations are managed via a free-list and used-list, which means freeing has an O(n) component at the moment.  Might consider bit arrays if this becomes a performance issue.
 
+	Note that allignment is only ensured if the initial allocation of the BucketArray instance is also aligned.
+
 	Module Parameters:
 	------------------
 		Currently none, tho I'm considering moving SIZES_CONFIG to be one instead of a Program Parameter.
@@ -45,6 +47,11 @@
 			If true, we allocate a bit more RAM to hold usage stats and update them as things are allocated/reallocated/freed.
 			It also defines printStats(*BucketAllocator, compact=false) that can then print the stats.
 			This is useful if you want to initialise to a configuration that allocates no more than it needs to for example.
+
+		ALLOW_OVERFLOW:
+			If true, an attempt to allocate what would go into a certain sized bucket is allowed to overflow to the next size up if there are no entries left.
+			This continues until a successful allocation or we run out of sizes to try.
+			Defaults to true.
 
 	Example:
 	--------
@@ -92,13 +99,19 @@
 			Not expected to be called directly, but rather via calls to alloc(s64[, *Allocator]), realloc(*void, s64, s64[, *Allocator]), free(*void[, *Allocator]), and get_capabilities(*Allocator).
 
 //LATER: logging?, //MAYBE: extra storage when full (iff RECORD_STATS?)?
-//QUESTION: should we (maybe via another param) support failing up if the requested size is full?  Need stats support added if we do this.
+//QUESTION: allow underflow?  Probably means adding a setting for which to prefer.
 
 */
 
 // Defaults are 1MiB each size.  Not sure if that makes sense yet.
 //QUESTION: should SIZES_CONFIG be a module or a program param?
-#module_parameters ()(SIZES_CONFIG : [$N]int = .[65536, 32768, 16384, 8192, 4096, 2048, 1024, 512, 256], USE_UNMAPPING_ALLOCATOR := false, HONOUR_REALLOC_SHRINK := false, RECORD_STATS := false);
+#module_parameters ()(
+	SIZES_CONFIG : [$N]int = .[65536, 32768, 16384, 8192, 4096, 2048, 1024, 512, 256],
+	USE_UNMAPPING_ALLOCATOR := false,
+	HONOUR_REALLOC_SHRINK := false,
+	RECORD_STATS := false,
+	ALLOW_OVERFLOW := true;
+);
 
 bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s64, old_memory: *void, allocator_data: *void) -> *void {
 	bucketAllocator := cast(*BucketAllocator)allocator_data;
@@ -145,7 +158,24 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 		print("BucketAllocator @%\n", bucketAllocator);
 		if (compact) {
 			for 0..SIZES_CONFIG.count - 1 {
-				print("  %: %/% = %4%%\n", formatInt(it + 4, minimum_digits=2), stats[it].highWaterMark, SIZES_CONFIG[it], (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
+				#if ALLOW_OVERFLOW {
+					print(
+						"  %: %/% = %4%% (%)\n",
+						formatInt(it + 4, minimum_digits=2),
+						stats[it].highWaterMark,
+						SIZES_CONFIG[it],
+						(10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0,
+						stats[it].overflows
+					);
+				} else {
+					print(
+						"  %: %/% = %4%%\n",
+						formatInt(it + 4, minimum_digits=2),
+						stats[it].highWaterMark,
+						SIZES_CONFIG[it],
+						(10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0
+					);
+				}
 			}
 		} else {
 			baType: *Type_Info_Struct = xx type_info(BucketAllocator);
@@ -163,6 +193,9 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 				print("      Grows    : %\n", stats[it].reallocateGrowsNeeded);
 				#if HONOUR_REALLOC_SHRINK {
 					print("      Shrinks  : %\n", stats[it].reallocateShrinksNeeded);
+				}
+				#if ALLOW_OVERFLOW {
+					print("    Overflows: %\n", stats[it].overflows);
 				}
 			}
 		}
@@ -198,7 +231,9 @@ deInit :: (using bucketAllocator: *BucketAllocator) {
 BucketSize :: #type,distinct u8;
 OldBucketSize :: #type,isa BucketSize;
 
-CAPS_VERSION_STRING :: "Bucket_Allocator v1.0";
+MAX_SIZE : BucketSize : SIZES_CONFIG.count + 3;
+
+CAPS_VERSION_STRING :: "Bucket_Allocator v1.1";
 
 initBucket :: (bucket: *BucketSet($S, $L)) {
 	for < L - 1..0 {
@@ -252,6 +287,34 @@ allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requ
 	}
 
 	return ref.item;
+}
+
+#if ALLOW_OVERFLOW {
+	doAllocateNew :: inline (bucketAllocator: *BucketAllocator, size: BucketSize) -> *BucketItemRef {
+		ref := allocateNew(bucketAllocator, size);
+		if ref  return ref;
+
+
+		origSize := size;
+		while !ref && size < MAX_SIZE {
+			size += 1;
+			ref = allocateNew(bucketAllocator, size);
+		}
+
+		if ref {
+			log("BucketAllocator: Overflowed allocation of BucketSize % into size %!", origSize, size, flags = .WARNING);
+			#if RECORD_STATS {
+				for origSize - 4..size - 5 {
+					stats[it].overflows += 1;
+				}
+			}
+		}
+		return ref;
+	}
+} else {
+	doAllocateNew :: inline (bucketAllocator: *BucketAllocator, size: BucketSize) -> *BucketItemRef {
+		return allocateNew(bucketAllocator, size);
+	}
 }
 
 calculateSize :: (requestedSize: s64) -> BucketSize {
@@ -416,11 +479,18 @@ BucketItemRef :: struct {
 	next: *BucketItemRef;
 }
 
-BucketStats :: struct {
-	allocated: int;
-	reallocateRequests: int;
-	reallocateGrowsNeeded: int;
-	reallocateShrinksNeeded: int;
-	freed: int;
-	highWaterMark: int;
+#if RECORD_STATS {
+	BucketStats :: struct {
+		allocated: int;
+		reallocateRequests: int;
+		reallocateGrowsNeeded: int;
+		#if HONOUR_REALLOC_SHRINK {
+			reallocateShrinksNeeded: int;
+		}
+		freed: int;
+		highWaterMark: int;
+		#if ALLOW_OVERFLOW {
+			overflows: int;
+		}
+	}
 }

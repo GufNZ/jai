@@ -19,6 +19,8 @@ It also optionally records statistics that can then be printed, aiding in tuning
 
 Allocations are managed via a free-list and used-list, which means freeing has an O(n) component at the moment.  Might consider bit arrays if this becomes a performance issue.
 
+Note that allignment is only ensured if the initial allocation of the BucketArray instance is also aligned.
+
 ### Module Parameters:
 Currently none, tho I'm considering moving SIZES_CONFIG to be one instead of a Program Parameter.
 This would allow there to be multiple instances with different configs, rather than the current paradigm that expects there to only ever be one \[configuration].
@@ -45,6 +47,11 @@ This would allow there to be multiple instances with different configs, rather t
 	It also defines `printStats(*BucketAllocator, compact=false)` that can then print the stats.
 	This is useful if you want to initialise to a configuration that allocates no more than it needs to for example.
 	Defaults to `false`.
+
+- `ALLOW_OVERFLOW`:
+	If `true`, an attempt to allocate what would go into a certain sized bucket is allowed to overflow to the next size up if there are no entries left.
+	This continues until a successful allocation or we run out of sizes to try.
+	Defaults to `true`.
 
 ### Example:
 The usual pattern for use would be something like:
