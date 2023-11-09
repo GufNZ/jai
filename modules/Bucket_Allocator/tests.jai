@@ -5,11 +5,11 @@
 
 main :: () {
 	newContext := context;
-	newContext.allocator = makeBucketAllocator();
+	newContext.allocator = make_bucket_allocator();
 
 	ba : *BucketAllocator = xx newContext.allocator.data;
-	printStats(ba, compact=true);
-	printStats(ba);
+	print_stats(ba, compact=true);
+	print_stats(ba);
 	caps, name := get_capabilities(newContext.allocator);
 	print("\n%; %\n\n", name, caps);
 
@@ -49,8 +49,8 @@ main :: () {
 		print("\n");
 	}
 
-	printStats(ba, compact=true);
-	printStats(ba);
+	print_stats(ba, compact=true);
+	print_stats(ba);
 	print("\n%\n\n", tests);
 }
 

@@ -45,7 +45,7 @@
 
 		RECORD_STATS:
 			If true, we allocate a bit more RAM to hold usage stats and update them as things are allocated/reallocated/freed.
-			It also defines printStats(*BucketAllocator, compact=false) that can then print the stats.
+			It also defines print_stats(*BucketAllocator, compact=false) that can then print the stats.
 			This is useful if you want to initialise to a configuration that allocates no more than it needs to for example.
 
 		ALLOW_OVERFLOW:
@@ -61,35 +61,35 @@
 		...
 
 		newContext := context;
-		newContext.allocator = makeBucketAllocator();
+		newContext.allocator = make_bucket_allocator();
 		push_context newContext {
 			...do stuff using the new allocator, remembering that everything including print will then use it...
 		}
 
 	Or alternatively, using the push_allocator macro:
 		...
-		push_allocator(makeBucketAllocator());
+		push_allocator(make_bucket_allocator());
 		...do stuff using the new allocator, till the end of the current scope...
 
 	API:
 	----
-		makeBucketAllocator() -> Allocator
+		make_bucket_allocator() -> Allocator
 			Allocates a BucketAllocator (via New()) and returns an Allocator struct configured to use it.
 
-		freeBucketAllocator(Allocator)
+		free_bucket_allocator(Allocator)
 			Frees the BucketAllocator configured in the supplied Allocator struct.
 			Not expected to be needed much but is here for completeness.
 
 		init(*BucketAllocator)
 			For in case you want to create the BucketAllocator yourself but still need to initialise it.
-			Note that this sets up the initial free-lists so is necessary to call before you can use the BucketAllocator instance; makeBucketAllocator() calls this for you.
+			Note that this sets up the initial free-lists so is necessary to call before you can use the BucketAllocator instance; make_bucket_allocator() calls this for you.
 
-		deInit(*BucketAllocator)
+		de_init(*BucketAllocator)
 			Frees the supplied allocator by calling free() on it.
 			Again, not expected to be needed much but is here for completeness.
 
 		#if RECORD_STATS {
-			printStats(*BucketAllocator, compact=false)
+			print_stats(*BucketAllocator, compact=false)
 				Prints either detailed or compact stats about the supplied BucketAllocator.
 				Compact stats just print the used/total counts and a percentage full per bucket size.
 		}
@@ -154,7 +154,7 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 }
 
 #if RECORD_STATS {
-	printStats :: (using bucketAllocator: *BucketAllocator, compact := false) {
+	print_stats :: (using bucketAllocator: *BucketAllocator, compact := false) {
 		print("BucketAllocator @%\n", bucketAllocator);
 		if (compact) {
 			for 0..SIZES_CONFIG.count - 1 {
@@ -202,13 +202,13 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 	}
 }
 
-makeBucketAllocator :: () -> Allocator {
+make_bucket_allocator :: () -> Allocator {
 	ba := New(BucketAllocator);
 	init(ba);
 	return .{ proc = bucket_allocator_proc, data = xx ba };
 }
 
-freeBucketAllocator :: (a: Allocator) {
+free_bucket_allocator :: (a: Allocator) {
 	assert(a.proc == bucket_allocator_proc && a.data, "Not a BucketAllocator!");
 	ba: cast(*BucketAllocator) a.data;
 	deInit(ba);
@@ -222,7 +222,7 @@ init :: (using bucketAllocator: *BucketAllocator) {
 	#insert #run generateSizeCalls("\tinitBucket(*size%Bucket);\n");
 }
 
-deInit :: (using bucketAllocator: *BucketAllocator) {
+de_init :: (using bucketAllocator: *BucketAllocator) {
 	free(bucketAllocator, allocator);
 }
 
@@ -233,7 +233,7 @@ OldBucketSize :: #type,isa BucketSize;
 
 MAX_SIZE : BucketSize : SIZES_CONFIG.count + 3;
 
-CAPS_VERSION_STRING :: "Bucket_Allocator v1.1";
+CAPS_VERSION_STRING :: "Bucket_Allocator v1.2";
 
 initBucket :: (bucket: *BucketSet($S, $L)) {
 	for < L - 1..0 {

@@ -44,7 +44,7 @@ This would allow there to be multiple instances with different configs, rather t
 
 - `RECORD_STATS`:
 	If `true`, we allocate a bit more RAM to hold usage stats and update them as things are allocated/reallocated/freed.
-	It also defines `printStats(*BucketAllocator, compact=false)` that can then print the stats.
+	It also defines `print_stats(*BucketAllocator, compact=false)` that can then print the stats.
 	This is useful if you want to initialise to a configuration that allocates no more than it needs to for example.
 	Defaults to `false`.
 
@@ -61,7 +61,7 @@ The usual pattern for use would be something like:
 	...
 
 	newContext := context;
-	newContext.allocator = makeBucketAllocator();
+	newContext.allocator = make_bucket_allocator();
 	push_context newContext {
 		...do stuff using the new allocator, remembering that everything including print will then use it...
 	}
@@ -69,27 +69,27 @@ The usual pattern for use would be something like:
 Or alternatively, using the push_allocator macro:
 
 	...
-	push_allocator(makeBucketAllocator());
+	push_allocator(make_bucket_allocator());
 	...do stuff using the new allocator, till the end of the current scope...
 
 ### API:
-- `makeBucketAllocator() -> Allocator`
+- `make_bucket_allocator() -> Allocator`
 	Allocates a `BucketAllocator` (via `New()`) and returns an Allocator struct configured to use it.
 
-- `freeBucketAllocator(Allocator)`
+- `free_bucket_allocator(Allocator)`
 	Frees the `BucketAllocator` configured in the supplied Allocator struct.
 	Not expected to be needed much but is here for completeness.
 
 - `init(*BucketAllocator)`
 	For in case you want to create the `BucketAllocator` yourself but still need to initialise it.
-	Note that this sets up the initial free-lists so is necessary to call before you can use the `BucketAllocator` instance; `makeBucketAllocator()` calls this for you.
+	Note that this sets up the initial free-lists so is necessary to call before you can use the `BucketAllocator` instance; `make_bucket_allocator()` calls this for you.
 
-- `deInit(*BucketAllocator)`
+- `de_init(*BucketAllocator)`
 	Frees the supplied allocator by calling free() on it.
 	Again, not expected to be needed much but is here for completeness.
 
 `#if RECORD_STATS {`
-- `printStats(*BucketAllocator, compact=false)`
+- `print_stats(*BucketAllocator, compact=false)`
 	Prints either detailed or compact stats about the supplied `BucketAllocator`.
 	Compact stats just print the used/total counts and a percentage full per bucket size.
 
