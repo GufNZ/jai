@@ -10,3 +10,4 @@
 /redist
 *.exe
 *.pdb
+*/.build
