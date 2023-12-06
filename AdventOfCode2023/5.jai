@@ -8,6 +8,8 @@
 
 part2 := false;
 
+PARALLEL :: true;
+
 main :: () {
 	args: []string;
 	if #compile_time {
@@ -60,19 +62,87 @@ main :: () {
 			closest = min(closest, map(toLocation, map(toHumidity, map(toTemp, map(toLight, map(toWater, map(toFertilizer, map(toSoil, it))))))));
 		}
 	} else {
-		i := 0;
-		while i < seeds.count {
-			print("%/% : %..%\n", i, seeds.count/2, seeds[i], seeds[i]+seeds[i+1]-1);
-			defer i += 2;
-			for seeds[i]..seeds[i]+seeds[i+1]-1 {
-				if (it%100000 == 0) print("% : %    \r", it, closest);
-				closest = min(closest, map(toLocation, map(toHumidity, map(toTemp, map(toLight, map(toWater, map(toFertilizer, map(toSoil, it))))))));
+		#if PARALLEL {
+			#import "System";
+			#import "Thread";
+
+			num_cpus := get_number_of_processors();
+			thread_group: Thread_Group;
+			init(*thread_group, num_cpus, seedRangeProc);
+			for * thread_group.worker_info {
+				it.thread.data = xx it_index;
 			}
-			print("\n");
+			start(*thread_group);
+			i := 0;
+			while i < seeds.count {
+				print("%/% : %..%\n", i/2, seeds.count/2, seeds[i], seeds[i]+seeds[i+1]-1);
+				defer i += 2;
+
+				work := New(Work);
+				work.low = seeds[i];
+				work.high = seeds[i]+seeds[i+1]-1;
+				work.toSoil = toSoil;
+				work.toFertilizer = toFertilizer;
+				work.toWater = toWater;
+				work.toLight = toLight;
+				work.toTemp = toTemp;
+				work.toHumidity = toHumidity;
+				work.toLocation = toLocation;
+
+				//TODO: make work out of fixed chunks of range, so towards the end of the # of ranges we still keep the threads busy.
+				add_work(*thread_group, work, tprint("Work item %", i/2));
+			}
+			i = seeds.count / 2;
+			while i {
+				sleep_milliseconds(10);
+				results := get_completed_work(*thread_group);
+				for results {
+					work := cast(*Work)it;
+					closest = min(closest, work.closest);
+				}
+				i -= results.count;
+				reset_temporary_storage();
+			}
+			shutdown(*thread_group);
+		} else {
+			i := 0;
+			while i < seeds.count {
+				print("%/% : %..%\n", i/2, seeds.count/2, seeds[i], seeds[i]+seeds[i+1]-1);
+				defer i += 2;
+				for seeds[i]..seeds[i]+seeds[i+1]-1 {
+					if (it%100000 == 0) print("% : %    \r", it, closest);
+					closest = min(closest, map(toLocation, map(toHumidity, map(toTemp, map(toLight, map(toWater, map(toFertilizer, map(toSoil, it))))))));
+				}
+				print("\n");
+			}
 		}
 	}
 
 	print("\n%\n", closest);
+}
+
+#if PARALLEL {
+	Work :: struct {
+		low: int;
+		high: int;
+		closest := S64_MAX;
+		toSoil: []Rule;
+		toFertilizer: []Rule;
+		toWater: []Rule;
+		toLight: []Rule;
+		toTemp: []Rule;
+		toHumidity: []Rule;
+		toLocation: []Rule;
+	}
+
+	seedRangeProc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
+		params := cast(*Work) work;
+		for params.low..params.high {
+			if (it%100000 == 0) print("[%] % : %\n", thread.data, (it - params.low)*100/(params.high-params.low), params.closest);
+			params.closest = min(params.closest, map(params.toLocation, map(params.toHumidity, map(params.toTemp, map(params.toLight, map(params.toWater, map(params.toFertilizer, map(params.toSoil, it))))))));
+		}
+		return .CONTINUE;
+	}
 }
 
 Rule :: struct {
@@ -131,6 +201,7 @@ parseNums :: (line: string) -> []int {
 #import "Math";
 #import "String";
 #import "Text_File_Handler";
+#import "Random";
 
 ascii :: (num: u8) -> string #expand {
 	// must be a macro or *num gets invalidated after return
