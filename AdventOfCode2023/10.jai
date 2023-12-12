@@ -94,21 +94,24 @@ main :: () {
 							x += 1;
 							print("+");
 							while grid[y][x] & 15 == .LEFT|.RIGHT {
+								print("-");
 								x += 1;
-								print("+");
 							}
+							print("+");
 							in = ifx grid[y][x] & 15 == .DOWN|.LEFT then in else !in;
 						}
 						case .UP|.RIGHT; {
 							x += 1;
 							print("+");
 							while grid[y][x] & 15 == .LEFT|.RIGHT {
+								print("-");
 								x += 1;
-								print("+");
 							}
+							print("+");
 							in = ifx grid[y][x] & 15 == .UP|.LEFT then in else !in;
 						}
 						case .UP|.DOWN; {
+							print("|");
 							in = !in;
 						}
 						case; assert(false, "Shouldn't get here: %", d);
@@ -116,8 +119,10 @@ main :: () {
 				} else if in {
 					sum += 1;
 					grid[y][x] = d | xx ifx isWall 32+16 else 32;
+					print(ifx grid[y][x] & 32 then (ifx grid[y][x] & 16 "*" else "#"));
+				} else {
+					print(".");
 				}
-				print(ifx in then (ifx grid[y][x] & 32 then (ifx grid[y][x] & 16 "*" else "#") else "+") else ".");
 			}
 			print("\n");
 		}
