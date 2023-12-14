@@ -1,12 +1,15 @@
 #if 0 {
-	#run start();
-	start :: () {
+	#run go();
+	go :: () {
 		set_build_options_dc(.{do_output=false, });
 		main();
 	}
 }
 
 part2 := false;
+
+PARALLEL :: true;
+MAX_THREADS :: 100;
 
 main :: () {
 	//context.assertion_failed = logAssert;
@@ -41,17 +44,71 @@ main :: () {
 	line, found := consume_next_line(*handler);
 	if !found return;
 
-	l := 1;
 	sum := 0;
-	while found {
-		n := matches(line);
-		print("%: %\n", l, n);
-		l += 1;
-		sum += n;
-		//stop = true;
-		line, found = consume_next_line(*handler);
+	#if PARALLEL {
+		l : u16 = 0;
+		while found {
+			defer l += 1;
+			workStorage[l].id = l;
+			workStorage[l].line = line;
+			line, found = consume_next_line(*handler);
+		}
+		debug("%\n", array_view(workStorage, 0, l));
+		#import "System";
+		#import "Thread";
+
+		num_cpus := get_number_of_processors();
+		assert(num_cpus < MAX_THREADS);
+		thread_group: Thread_Group;
+		init(*thread_group, num_cpus, doWork);
+		for * thread_group.worker_info {
+			it.thread.data = xx (it_index + 1);
+		}
+		start(*thread_group);
+		for 0..l - 1 {
+			debug("%: %\n", it, it);
+			add_work(*thread_group, *workStorage[it], sprint("Work item %", it + 1));
+		}
+		while l {
+			sleep_milliseconds(10);
+			results := get_completed_work(*thread_group);
+			for results {
+				work := cast(*Work)it;
+				print("[%] %: %\n", l, work.id, work.score);
+				sum += work.score;
+				l -= 1;
+			}
+			reset_temporary_storage();
+		}
+		shutdown(*thread_group);
+	} else {
+		l := 1;
+		while found {
+			n := matches(line, 0);
+			print("%: %\n", l, n);
+			l += 1;
+			sum += n;
+			//stop = true;
+			line, found = consume_next_line(*handler);
+		}
 	}
 	print("\n%\n", sum);
+}
+
+#if PARALLEL {
+	doWork :: (group: *Thread_Group, thread: *Thread, params: *void) -> Thread_Continue_Status {
+		work := cast(*Work) params;
+		work.score = matches(work.line, xx (cast(int)thread.data));
+		reset_temporary_storage();
+		return .CONTINUE;
+	}
+	Work :: struct {
+		id: u16;
+		line: string;
+		score: int;
+	}
+
+	workStorage: [1000]Work;
 }
 
 stop := false;
@@ -63,7 +120,7 @@ debug :: (s: string, args: ..Any) #expand {
 	if out  print(s, ..args);
 }
 
-matches :: (line: string) -> int {
+matches :: (line: string, id: u16) -> int {
 	debug("\n---------------\n");
 	parts := split(line, " ");
 	if part2 {
@@ -83,11 +140,11 @@ matches :: (line: string) -> int {
 	}
 
 	//out = pattern == "?###????????";
-	currentNums = nums;
-	if current  free(current);
-	current = copy_string(pattern);
-	array_reset(*offsets);
-	score := test(pattern, nums, min, 0);
+	currentNums[id] = nums;
+	if current[id]  free(current[id]);
+	current[id] = copy_string(pattern);
+	array_reset(*offsets[id]);
+	score := test(pattern, nums, min, 0, id);
 	if part2 {
 		free(parts[0]);
 		free(parts[1]);
@@ -97,19 +154,19 @@ matches :: (line: string) -> int {
 
 FAST :: true;
 
-current: string;
-currentNums: []s8;
-offsets: [..]int;
-confirm :: () -> int {
+current: [MAX_THREADS]string;
+currentNums: [MAX_THREADS][]s8;
+offsets: [MAX_THREADS][..]int;
+confirm :: (id: u16) -> int {
 	//out = true;
-	debug("Confirm '%' against %::%\n         ", current, offsets, currentNums);
+	debug("[%] Confirm '%' against %::%\n[%1]         ", id, current[id], offsets[id], currentNums[id]);
 	//stop = current == "?????????????.#..";
 	brk();
 	i := 0;
 	score := 1;
-	for o, x: offsets {
+	for o, x: offsets[id] {
 		for n: 0..o - 1 {
-			if current[i + n] == #char "#" {
+			if current[id][i + n] == #char "#" {
 				#if FAST {
 					debug("! = 0\n");
 					return 0;
@@ -122,14 +179,14 @@ confirm :: () -> int {
 			}
 			brk();
 		}
-		i += o + currentNums[x] + 1;
-		for 1..currentNums[x]  debug("#");
+		i += o + currentNums[id][x] + 1;
+		for 1..currentNums[id][x]  debug("#");
 		debug(".");
 		brk();
 	}
 	brk();
-	for i..current.count - 1 {
-		if current[it] == #char "#" {
+	for i..current[id].count - 1 {
+		if current[id][it] == #char "#" {
 			#if FAST {
 				debug("! = 0\n");
 				return 0;
@@ -143,32 +200,32 @@ confirm :: () -> int {
 	}
 	debug(" = %\n", score);
 	brk();
-	out = false;
+	//out = false;
 	return score;
 }
 
 INDENT :: "                                                                       ";
 
-test :: (pattern: string, nums: []s8, min: s8, depth: u8) -> int {
+test :: (pattern: string, nums: []s8, min: s8, depth: u8, id: u16) -> int {
 	debug("%test % against % (%)\n", slice(INDENT, 0, depth), pattern, nums, min);
 	brk();
-	if !nums.count  return confirm();
+	if !nums.count  return confirm(id);
 	result := 0;
 	offset := 0;
-	array_add(*offsets, 0);
+	array_add(*offsets[id], 0);
 	while pattern.count && min <= pattern.count {
-		offsets[offsets.count - 1] = offset;
-		result += eval(pattern, nums, min, depth + 1);
+		offsets[id][offsets[id].count - 1] = offset;
+		result += eval(pattern, nums, min, depth + 1, id);
 		debug("%1%2: %\n", slice(INDENT, 0, depth), offset, result);
 		brk();
 		offset += 1;
 		advance(*pattern, 1);
 	}
-	array_unordered_remove_by_index(*offsets, offsets.count - 1);
+	array_unordered_remove_by_index(*offsets[id], offsets[id].count - 1);
 	return result;
 }
 
-eval :: (pattern: string, nums: []s8, min: s8, depth: u8) -> int {
+eval :: (pattern: string, nums: []s8, min: s8, depth: u8, id: u16) -> int {
 	debug("%eval % against %\n", slice(INDENT, 0, depth), pattern, nums);
 	brk();
 	if !nums.count  return 0;
@@ -199,7 +256,7 @@ eval :: (pattern: string, nums: []s8, min: s8, depth: u8) -> int {
 	}
 
 	brk();
-	return test(advance(pattern, num), array_view(nums, 1), min - num, depth + 2);
+	return test(advance(pattern, num), array_view(nums, 1), min - num, depth + 2, id);
 }
 
 #import "Basic";
