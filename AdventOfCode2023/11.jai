@@ -147,8 +147,5 @@ logAssert := (loc: Source_Code_Location, message: string) -> bool {
 
 ascii :: (num: u8) -> string #expand {
 	// must be a macro or *num gets invalidated after return
-	str: string;
-	str.count = 1;
-	str.data  = *num;
-	return str;
+	return .{1, *num};
 }
