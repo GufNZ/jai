@@ -8,10 +8,13 @@
 
 part2 := false;
 
-PARALLEL :: true;
+PARALLEL :: false;
 MAX_THREADS :: 100;
 
 main :: () {
+	#if CACHE {
+		init(*cache);
+	}
 	//context.assertion_failed = logAssert;
 	args: []string;
 	if #compile_time {
@@ -70,7 +73,7 @@ main :: () {
 			add_work(*thread_group, *workStorage[it], sprint("Work item %", it + 1));
 		}
 		while l {
-			sleep_milliseconds(10);
+			sleep_milliseconds(500);
 			results := get_completed_work(*thread_group);
 			for results {
 				work := cast(*Work)it;
@@ -85,12 +88,20 @@ main :: () {
 		l := 1;
 		while found {
 			n := matches(line, 0);
+			reset_temporary_storage();
 			print("%: %\n", l, n);
 			l += 1;
 			sum += n;
 			//stop = true;
 			line, found = consume_next_line(*handler);
 		}
+	}
+	#if CACHE {
+		print("\nCACHE:\n");
+		for cache {
+			print("[%]=%\n", it_index, it);
+		}
+		print("=%\n", cache.count);
 	}
 	print("\n%\n", sum);
 }
@@ -159,7 +170,7 @@ currentNums: [MAX_THREADS][]s8;
 offsets: [MAX_THREADS][..]int;
 confirm :: (id: u16) -> int {
 	//out = true;
-	debug("[%] Confirm '%' against %::%\n[%1]         ", id, current[id], offsets[id], currentNums[id]);
+	debug("[%] Confirm '%' against %::%\n[%1]          ", id, current[id], offsets[id], currentNums[id]);
 	//stop = current == "?????????????.#..";
 	brk();
 	i := 0;
@@ -204,12 +215,46 @@ confirm :: (id: u16) -> int {
 	return score;
 }
 
-INDENT :: "                                                                       ";
+INDENT :: "                                                                                                                                              ";
+
+CACHE :: true;
+#if CACHE {
+	cache: Table(string, int);
+}
+
+outDepth: u8;
 
 test :: (pattern: string, nums: []s8, min: s8, depth: u8, id: u16) -> int {
+	if pattern == "????" && nums.count == 1 && nums[0] == 1 {
+		out = true;
+		outDepth = depth;
+	} else if out {
+		outDepth -= 1;
+		if !outDepth  out = false;
+	}
 	debug("%test % against % (%)\n", slice(INDENT, 0, depth), pattern, nums, min);
+	#if CACHE {
+		key := tprint("%:%", pattern, nums);
+		val, found := table_find(*cache, key);
+		//if found {
+		//	debug("%  CACHE[%] = %\n", slice(INDENT, 0, depth), key, val);
+		//	return val;
+		//};
+	}
+
 	brk();
-	if !nums.count  return confirm(id);
+	if !nums.count {
+		value := confirm(id);
+		#if CACHE {
+			key = tprint("~%,%,%", current[id], offsets[id], currentNums[id]);
+			val, found := table_find(*cache, key);
+			if found {
+				assert(val == value, tprint("% :: % for %", val, value, key));
+			}
+			table_set(*cache, copy_string(key), value);
+		}
+		return value;
+	}
 	result := 0;
 	offset := 0;
 	array_add(*offsets[id], 0);
@@ -222,6 +267,12 @@ test :: (pattern: string, nums: []s8, min: s8, depth: u8, id: u16) -> int {
 		advance(*pattern, 1);
 	}
 	array_unordered_remove_by_index(*offsets[id], offsets[id].count - 1);
+	#if CACHE {
+		if found {
+			assert(val == result, tprint("% :: % for %", val, result, key));
+		}
+		table_set(*cache, copy_string(key), result);
+	}
 	return result;
 }
 
