@@ -1,0 +1,11 @@
+{
+	"local_modules": [
+		"modules"
+	],
+	"roots": [
+		"tests.jai",
+		"units.jai"
+	],
+	"build_root": "tests.jai",
+	"auto_insert_parentheses": false
+}

@@ -10,3 +10,6 @@
 /redist
 *.exe
 *.pdb
+*/.build
+*.prj
+*.rdi
