@@ -160,7 +160,7 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 			for 0..SIZES_CONFIG.count - 1 {
 				#if ALLOW_OVERFLOW {
 					print(
-						"  %: %/% = %4%% (%)\n",
+						"  %: %/% = %4\% (%)\n",
 						formatInt(it + 4, minimum_digits=2),
 						stats[it].highWaterMark,
 						SIZES_CONFIG[it],
@@ -169,7 +169,7 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 					);
 				} else {
 					print(
-						"  %: %/% = %4%%\n",
+						"  %: %/% = %4\%\n",
 						formatInt(it + 4, minimum_digits=2),
 						stats[it].highWaterMark,
 						SIZES_CONFIG[it],
@@ -186,7 +186,7 @@ bucket_allocator_proc :: (mode: Allocator_Mode, requested_size: s64, old_size: s
 				print("    Freed     : %\n", stats[it].freed);
 				print("    High Water: %\n", stats[it].highWaterMark);
 				print("    LIMIT     : %\n", SIZES_CONFIG[it]);
-				print("      %%       : %\n", (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
+				print("      \%       : %\n", (10000 * stats[it].highWaterMark / SIZES_CONFIG[it]) / 100.0);
 				print("    Reallocate:\n");
 				print("      Requested: %\n", stats[it].reallocateRequests);
 				print("      NOPs     : %\n", stats[it].reallocateRequests - (stats[it].reallocateGrowsNeeded + stats[it].reallocateShrinksNeeded));
@@ -334,7 +334,7 @@ allocateNew :: inline (using bucketAllocator: *BucketAllocator, size: BucketSize
 	#insert #run generateSizeCalls(
 		preamble="\tif size == {\n",
 		format="\t\tcase %1;\n\t\t\treturn allocateNew(bucketAllocator, *size%1Bucket);\n",
-		postamble="\n\t\tcase;\n\t\t\tassert(false, \"Bad size %%!\", size);\n\t\t\treturn null;\n\t}\n"
+		postamble="\n\t\tcase;\n\t\t\tassert(false, \"Bad size \%!\", size);\n\t\t\treturn null;\n\t}\n"
 	);
 }
 
