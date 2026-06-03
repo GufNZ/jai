@@ -1,25 +1,38 @@
-main :: () {
-	print(tprint("\% \\\% %\n", 2), "A");
-//	s := MetersPerSecond(float).{5};
-//	g := MetersPerSecond2(float).{9.8};
-//	h := Meters(float).{1};
-//	range := calc_ballistic_range2(s, g, h);
-//	print("%\n", range);
-//
-//	s2 := KilometersPerSecond(float64).{.005};
-//	g2 := KilometersPerSecond2(float64).{.0098};
-//	h2 := Kilometers(float64).{0.001};
-//	range2 := calc_ballistic_range2(s2, g2, h2);
-//	print("%\n", range2);
+formatLong :: (v: Any) -> FormatStruct {
+	return FormatStruct.{
+		value = v,
+		draw_type_name = true,
+		use_long_form_if_more_than_this_many_members = -1,
+		use_newlines_if_long_form = true,
+		begin_string = "\e[91m.{\e[92m",
+		end_string = "\e[91m}\e[0m",
+		separator_between_name_and_value = "\e[93m = \e[94m",
+		long_form_separator_between_fields = "\e[95m;\e[92m",
+		recursive_long_form_depth = -1,
+	};
 }
-#run main();
-/*
-MetersPerSecond :: #insert #run SI(meters(per(second())));
-MetersPerSecondSquared :: #insert #run SI(meters(per(second(squared))));
 
-Kilometers :: #insert #run SI(kilo(meters()));
-KilometersPerSecond :: #insert #run SI(kilo(meters(per(second()))));
-KilometersPerSecondSquared :: #insert #run SI(kilo(meters(per(second(squared)))));
+main :: () {
+	assert(tprint(tprint("\% \\\% %", 2), "A") == "A % 2", "Print bugfix for double-escaped \% needed!");
+	s := MetersPerSecond(float).{5};
+	g := MetersPerSecond2(float).{9.8};
+	h := Meters(float).{1};
+	range := calc_ballistic_range2(s, g, h);
+	print("%\n", formatLong(range));
+
+	s2 := KilometersPerSecond(float64).{.005};
+	g2 := KilometersPerSecond2(float64).{.0098};
+	h2 := Kilometers(float64).{0.001};
+	range2 := calc_ballistic_range2(s2, g2, h2);
+	print("%\n", formatLong(range2));
+}
+
+MetersPerSecond :: #insert #run,stallable SI(meters(per(second())));
+MetersPerSecondSquared :: #insert #run,stallable SI(meters(per(second(squared))));
+
+Kilometers :: #insert #run,stallable SI(kilo(meters()));
+KilometersPerSecond :: #insert #run,stallable SI(kilo(meters(per(second()))));
+KilometersPerSecondSquared :: #insert #run,stallable SI(kilo(meters(per(second(squared)))));
 
 calc_ballistic_range :: (
 	speed: MetersPerSecond(float),
@@ -88,5 +101,4 @@ calc_ballistic_range2 :: (
 }
 
 #import "Units";
-*/
 #import "Basic";

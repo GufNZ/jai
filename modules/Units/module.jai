@@ -7,35 +7,36 @@
 	meters :: metres;
 }
 
-SIUnit :: enum {
-	NONE;
-	Metre;
-	Kilogram;
-	Second;
-	Ampere;
-	Kelvin;
-	Mole;
-	Candela;
-}
+//dump :: (s: $T, loc := #caller_location) -> T {
+//	print("\e[92mDump at %:%:%\e[0m\n", loc.fully_pathed_filename, loc.line_number, loc.character_number);
+//	print("\e[93m%\e[0m\n\n", replace(s, "\%", "\\%"));
+//	return s;
+//}
 
-#insert #run tprint(
-	#string JAI
-SIQuantity :: struct(
-	DataType: Type,
+gcd :: (a: int, b: int) -> int {
+	while b {
+		a, b = b, a % b;
+	}
 
-%
-)
-{
-	amount : DataType;
+	return a;
 }
-JAI,
-	fieldsTemplate("\t%Num: int, %1Denom: int, %1Exp: int", ",\n")
-);
 
 #scope_file
 
-fieldsTemplate :: (template: string, joiner := "", alt: (name: string) -> string = null, prefix := "", suffix := "") -> string {
+lowerInitial :: (s: string) -> string {
+	if s.count == 0 {
+		return s;
+	}
+
+	t := copy_string(s,, temp);
+	t[0] |= 32 .(u8);
+	return t;
+}
+
+fieldsTemplate :: (template: string, joiner := "", alt: (name: string) -> string = null, prefix := "", suffix := "", loc := #caller_location, halt := false) -> string {
 	sb: String_Builder;
+
+	if halt  debug_break();
 
 	if prefix {
 		print(*sb, prefix);
@@ -51,24 +52,62 @@ fieldsTemplate :: (template: string, joiner := "", alt: (name: string) -> string
 		}
 
 		if alt {
-			print(*sb, template, it, alt(it));
+			print(*sb, template, it, alt(it), loc=loc);
 		} else {
-			print(*sb, template, it);
+			print(*sb, template, it, loc=loc);
 		}
 	}
 
 	if suffix {
-		print(*sb, suffix);
+		print(*sb, suffix, loc=loc);
 	}
 
 	return builder_to_string(*sb);
 }
 
+join :: (things: ..() -> string) -> string {
+	sb: String_Builder;
+	for things {
+		append(*sb, it());
+	}
+
+	return builder_to_string(*sb);
+}
+
+#scope_export
+
+SIUnit :: enum {
+	NONE;
+	Metre;
+	Kilogram;
+	Second;
+	Ampere;
+	Kelvin;
+	Mole;
+	Candela;
+}
+
+#insert #run join(
+	() => #string JA
+SIQuantity :: struct(
+	DataType: Type,
+
+JA,
+	() => fieldsTemplate("\t%Num: int, %1Denom: int, %1Exp: int", ",\n"),
+	() => #string JA
+
+)
+{
+	amount : DataType;
+}
+
 SIQuantityTypeParams :: struct {
-	#insert -> string {
+	#insert #run,stallable -> string {
 		sb: String_Builder;
 
-		#insert #run fieldsTemplate("0,0,0", ",", prefix="ti := type_info(SIQuantity(int,", suffix="));");
+JA,
+	() => fieldsTemplate("0,0,0", ",", prefix="\t\tti := type_info(SIQuantity(int,", suffix="));\n"),
+	() => #string JA
 		for ti.specified_parameters {
 			print(*sb, "\t%: %;\t// @ %\n", it.name, get_type(it.type), it.offset_into_constant_storage);
 		}
@@ -76,7 +115,7 @@ SIQuantityTypeParams :: struct {
 		print(*sb, "\n\tlastSet: SIUnit;\n");
 
 		return builder_to_string(*sb);
-	}
+	};
 
 	validationError: string = "";
 }
@@ -103,44 +142,46 @@ getSIParameters :: (t: Type) -> SIQuantityTypeParams {
 }
 
 SI :: (parameters: SIQuantityTypeParams) -> string #expand #compile_time {
-	return tprint(
-		tprint(
-			#string JAI
-#bake_arguments SIQuantity(
-$
-);
-JAI,
-			fieldsTemplate("%Num=\%, %Denom=\%, %Exp=\%,")
-		),
-		#insert #run fieldsTemplate("\t\tparameters.%Num, parameters.%Denom, parameters.%Exp", ",\n"),
-	);
+JA,
+	() => fieldsTemplate(
+		"\t%Num=parameters.%1Num, %1Denom=parameters.%1Denom, %1Exp=parameters.%1Exp",
+		",\n",
+		prefix="return #string JAI\n#bake_arguments SIQuantity(\n",
+		suffix="\n);\nJAI;"
+	),
+	() => #string JA
 }
+
+#scope_file
 
 normalise :: (pp: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	p := pp;
 	d: int = ---;
-
-	#insert #run fieldsTemplate(
-		#string JAI
-	if p.%Num > 1 && p.%1Denom > 1 {
+JA,
+	() => fieldsTemplate(
+		#string JA
+	if p.%Num && p.%1Denom {
 		d = gcd(p.%1Num, p.%1Denom);
 		p.%1Num /= d;
 		p.%1Denom /= d;
 	}
-JAI,
+JA,
 		"\n"
-	);
+	),
+	() => #string JA
 
 	return p;
 }
 
-#insert #run fieldsTemplate(
-	#string JAI
-%2 :: %2s;
-%2s :: inline (mod: (q: SIQuantityTypeParams) -> SIQuantityTypeParams, p: SIQuantityTypeParams = .{}) -> SIQuantityTypeParams {
-	return %s(p, mod);
+#scope_export
+
+JA,
+	() => fieldsTemplate(
+		#string JA
+%2 :: inline (mod: (q: SIQuantityTypeParams) -> SIQuantityTypeParams, p: SIQuantityTypeParams = .{}) -> SIQuantityTypeParams {
+	return %2(p, mod);
 }
-%2s :: (pp := SIQuantityTypeParams.{}, mod: (q: SIQuantityTypeParams) -> SIQuantityTypeParams = null) -> SIQuantityTypeParams {
+%2 :: (pp := SIQuantityTypeParams.{}, mod: (q: SIQuantityTypeParams) -> SIQuantityTypeParams = null) -> SIQuantityTypeParams {
 	p := pp;
 
 	p.%1Num = 1;
@@ -155,108 +196,124 @@ JAI,
 
 	return normalise(p);
 }
-JAI,
-	"\n",
-	name => lowerInitial(name)
-);
+%2s :: %2;
+JA,
+		"\n",
+		name => lowerInitial(name)
+	),
+	() => #string JA
 
-big		:: string.["kilo",	"mega",	"giga",	"tera",	"peta",	"exa",	/* Too big for int: "zetta", "yotta"*/];
-small	:: string.["milli",	"micro","nano",	"pico",	"femto","atto",	/* Too big for int: "zepto", "yocto"*/];
+#scope_file
 
-//bigBinary :: string.["kibi", "mebi", "gibi", "tebi", "pebi", "exbi", /* Too big for int: "zebi", "yobi"*/];
-
-#scope_export
-
-#insert -> string {
-	common :: (sb: *String_Builder, n: u64, field: string) -> string {
-		print(
-			sb, #string JAI
-% :: (pp: SIQuantityTypeParams) -> SIQuantityTypeParams {
+mult :: (pp: SIQuantityTypeParams, n: u64, name: string) -> SIQuantityTypeParams {
 	p := pp;
-	if p.lastSet == {
-%
 
+	if p.lastSet == {
+JA,
+	() => fieldsTemplate(
+		#string JA
+		case .%;
+			p.%1Num *= n;
+JA
+	),
+	() => #string JA
 		case;
-			assert(false, "Can only apply %1 to a base SI unit.");
+			assert(false, "Can only apply % to a base SI unit.", name);
 	}
 
 	return p;
 }
-JAI,
-			it,
-			replace(
-				fieldsTemplate(
-					tprint(
-						#string JAI
-		case .\%;
-			p.\%1% *= #;
-JAI,
-						field
-					)
-				),
-				"#",
-				tprint("%", n)
-			)
-		);
-	};
 
-	sb: String_Builder;
-	n :u64= 1;
-	for big {
-		n *= 1000;
-		common(*sb, n, "Num");
+div :: (pp: SIQuantityTypeParams, n: u64, name: string) -> SIQuantityTypeParams {
+	p := pp;
+
+	if p.lastSet == {
+JA,
+	() => fieldsTemplate(
+		#string JA
+		case .%;
+			p.%1Denom *= n;
+JA
+	),
+	() => #string JA
+		case;
+			assert(false, "Can only apply % to a base SI unit.", name);
 	}
 
-	print(*sb, "\n");
-
-	n = 1;
-	for small {
-		n *= 1000;
-		common(*sb, n, "Denom");
-	}
-
-	return builder_to_string(*sb);
+	return p;
 }
+
+JA,
+	() -> string {
+		big		:: string.["kilo",	"mega",	"giga",	"tera",	"peta",	"exa",	/* Too big for int: "zetta", "yotta"*/];
+		small	:: string.["milli",	"micro","nano",	"pico",	"femto","atto",	/* Too big for int: "zepto", "yocto"*/];
+
+		//bigBinary :: string.["kibi", "mebi", "gibi", "tebi", "pebi", "exbi", /* Too big for int: "zebi", "yobi"*/];
+
+		common :: (n: u64, it: string, proc: string) -> string {
+			return tprint(
+				#string JA
+ % :: (p: SIQuantityTypeParams) -> SIQuantityTypeParams {
+	return %(p, %, "%1");
+}
+
+JA,
+				it,
+				proc,
+				n
+			);
+		}
+
+		sb: String_Builder;
+		n: u64 = 1;
+		for big {
+			n *= 1000;
+			append(*sb, common(n, it, "mult"));
+		}
+
+		print(*sb, "\n");
+
+		n = 1;
+		for small {
+			n *= 1000;
+			append(*sb, common(n, it, "div"));
+		}
+
+		return builder_to_string(*sb);
+	},
+	() => #string JA
 
 per :: (pp: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	p := pp;
 
-	#insert #run tprint(
-		#string JAI
 	if p.lastSet == {
-%
+JA,
+	() => fieldsTemplate(
+		#string JA
+		case .%;
+			p.%1Exp = -p.%1Exp;
+JA
+	),
+	() => #string JA
 
 		case;
 			assert(false, "Can only apply per to a base SI unit.");
 	}
-JAI,
-		fieldsTemplate(#string JAI
-		case .%;
-			p.%1Exp = -p.%1Exp;
-JAI
-		)
-	);
 
 	return p;
 }
 
-gcd :: (a: int, b: int) -> int {
-	while b {
-		a, b = b, a % b;
-	}
-
-	return a;
-}
-
 #scope_file
 
-#insert #run fieldsTemplate(
-	#string JAI
-% :: #insert #run SI(%());
-JAI,
-	"\n",
-	name => lowerInitial(name)
-);
+JA,
+	() => fieldsTemplate(
+		#string Ja
+% :: #insert #run,stallable SI(%());
+Ja,
+		"\n",
+		name => lowerInitial(name)
+	),
+	() => #string JA
 
 modCheck :: (ok: bool, errorMessage: string, args: ..Any) -> bool #expand {
 	if !ok {
@@ -276,38 +333,46 @@ dataTypesMatch :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> b
 
 ratiosCompatible :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
 	ok := true;
-	#insert #run fieldsTemplate("\tok &&= a.%Num == b.%1Num && a.%1Denom == b.%1Denom || !a.%1Num || !b.%1Num;", "\n");
+JA,
+	() => fieldsTemplate("\tok &&= a.%Num == b.%1Num && a.%1Denom == b.%1Denom || !a.%1Num || !b.%1Num;", "\n"),
+	() => #string JA
 	return ok;
 }
 
 ratiosEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
-	#insert #run fieldsTemplate("a.%Num == b.%1Num && a.%1Denom == b.%1Denom", "\n\t\t&& ", prefix="return ", suffix=";");
+JA,
+	() => fieldsTemplate("a.%Num == b.%1Num && a.%1Denom == b.%1Denom", "\n\t\t&& ", prefix="return ", suffix=";"),
+	() => #string JA
 }
 
 exponentsEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
-	#insert #run fieldsTemplate("a.%Exp == b.%1Exp", "\n\t\t&& ", prefix="return ", suffix=";");
+JA,
+	() => fieldsTemplate("a.%Exp == b.%1Exp", "\n\t\t&& ", prefix="return ", suffix=";"),
+	() => #string JA
 }
 
-EXPONENTS_TEMPLATE :: #string,\% TEMPLATE_JAI
+EXPONENTS_TEMPLATE :: #string TEMPLATE_Ja
 (a: *SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	// The |= below is safe as by now either both exponents are the same or one is zero:
-	#insert #run fieldsTemplate(
-		#string JAI
-	a.\%Exp %1= b.\%1Exp;
-	if a.\%1Exp {
-		a.\%1Num |= b.\%1Num;
-		a.\%1Denom |= b.\%1Denom;
+JA,
+	() => fieldsTemplate(
+		#string JA
+	a.%Exp \%1= b.%1Exp;
+	if a.%1Exp {
+		a.%1Num |= b.%1Num;
+		a.%1Denom |= b.%1Denom;
 	} else {
-		a.\%1Num = 0;
-		a.\%1Denom = 0;
+		a.%1Num = 0;
+		a.%1Denom = 0;
 	}
-JAI,
+JA,
 		"\n"
-	);
+	),
+	() => #string JA
 
 	return a;
 }
-TEMPLATE_JAI;
+TEMPLATE_Ja;
 
 addExponents :: #insert #run tprint(EXPONENTS_TEMPLATE, "+");
 subtractExponents :: #insert #run tprint(EXPONENTS_TEMPLATE, "-");
@@ -317,15 +382,17 @@ validate :: (p: SIQuantityTypeParams) #expand {
 }
 
 buildReturnType :: inline (a: SIQuantityTypeParams) #expand {
-	#insert #run fieldsTemplate(
+JA,
+	() => fieldsTemplate(
 		"\t\t%Num=a.%1Num, %1Denom=a.%1Denom, %1Exp=a.%1Exp",
 		",\n",
-		prefix=#string JAI
-RET = #dynamic_specialize SIQuantity(
+		prefix=#string JA
+`RET = #dynamic_specialize SIQuantity(
 		DataType=a.DataType,
-JAI,
+JA,
 		suffix="\n\t);"
-	);
+	),
+	() => #string JA
 }
 
 #scope_export
@@ -427,24 +494,28 @@ operator / :: (a: $T/SIQuantity, b: T.DataType) -> T {
 	return result;
 }
 
-#scope_file
-
 ExpHolder :: struct(exp: int) { EXP :: exp; }
 
-#scope_export
-
-pow :: (pp: SIQuantityTypeParams, exp: int) -> SIQuantityTypeParams {
+pow :: (pp: SIQuantityTypeParams, e: ExpHolder($EXP)) -> SIQuantityTypeParams {
 	p := pp;
 
-	#insert #run fieldsTemplate(tprint("p.\%Exp *= %;", 42/*exp*/), "\n");
+	#insert #run tprint(
+		#string Jai
+JA,
+	() => fieldsTemplate("\tp.%Exp *= \%1;", "\n"),
+	() => #string JA
+
+Jai,
+		EXP
+	);
 
 	return normalise(p);
 }
-pow :: (x: $T/SIQuantity, exp: $E/ExpHolder) -> $RET
+pow :: (x: $T/SIQuantity, e: ExpHolder($EXP)) -> $RET
 #modify {
+	print("pow: exp = %\n", EXP);
 	a := getSIParameters(T);
-	ti := E.(*Type_Info_Struct);
-	a = (#procedure_of_call pow(SIQuantityTypeParams.{}, 1))(a, ti.constant_storage.data.(*int).*);
+	a = pow(a, ExpHolder(EXP).{});
 	validate(a);
 
 
@@ -452,69 +523,71 @@ pow :: (x: $T/SIQuantity, exp: $E/ExpHolder) -> $RET
 	return true;
 } {
 	result: RET;
-	result.amount = xx pow(x.amount, exp);
+	result.amount = xx pow(x.amount, EXP);
 	return result;
 }
 
 square :: squared;
-squared :: #bake_arguments (#procedure_of_call pow(SIQuantityTypeParams.{}, 1))(exp=2);
-squared :: #bake_arguments (#procedure_of_call pow(metre(int), 1))(exp=2);
+squared :: #bake_arguments (#procedure_of_call pow(SIQuantityTypeParams.{}, ExpHolder(2).{}))(e=ExpHolder(2).{});
+squared :: #bake_arguments (#procedure_of_call pow(metre(), ExpHolder(2).{}))(e=ExpHolder(2).{});
 cube :: cubed;
-cubed :: #bake_arguments (#procedure_of_call pow(SIQuantityTypeParams.{}, 1))(exp=3);
-cubed :: #bake_arguments (#procedure_of_call pow(metre(int), 1))(exp=3);
+cubed :: #bake_arguments (#procedure_of_call pow(SIQuantityTypeParams.{}, ExpHolder(3).{}))(e=ExpHolder(3).{});
+cubed :: #bake_arguments (#procedure_of_call pow(metre(), ExpHolder(3).{}))(e=ExpHolder(3).{});
 
-root :: (pp: SIQuantityTypeParams, exp: int) -> SIQuantityTypeParams {
+root :: (pp: SIQuantityTypeParams, e: ExpHolder($EXP)) -> SIQuantityTypeParams {
 	p := pp;
 
 	// Exponents must be divisible by exp//LATER: consider fractional exponents?
-	#insert #run fieldsTemplate(tprint("p.\%Exp \\\% %", 2/*exp*/), " || ", prefix="if ", suffix=#string JAI
+	#insert #run tprint(
+		#string Jai
+JA,
+	() => fieldsTemplate("p.%Exp \\\\\\% \\%1", " && ", prefix="\tif ", suffix=#string JAI
  {
-		p.validationError = tprint("\nUnitsError: Can not apply %root to non-multiples of %1.\n[%2]\n", exp, p);
+		p.validationError = tprint("\\nUnitsError: Can not apply \\\%1root to non-multiples of \\\%1.\\n[\%]\\n", p);
 		return p;
 	}
 JAI
+	),
+	() => #string JA
+		EXP
 	);
 
-	#insert #run fieldsTemplate(tprint("p.\%Exp /= %", 2/*exp*/), "\n");
+	#insert #run tprint(
+		#string Jai
+JA,
+	() => fieldsTemplate("\tp.%Exp *= \%1;", "\n"),
+	() => #string JA
+
+Jai,
+		EXP
+	);
 
 	return normalise(p);
 }
-root :: (x: $T/SIQuantity, exp: $E/ExpHolder) -> $RET
+root :: (x: $T/SIQuantity, e: ExpHolder($EXP)) -> $RET
 #modify {
+	print("root: exp = %\n", EXP);
 	a := getSIParameters(T);
-	ti := E.(*Type_Info_Struct);
-	a = root(a, ti.constant_storage.data.(*int).*);
+	a = root(a, ExpHolder(EXP).{});
 	validate(a);
 
 	buildReturnType(a);
 	return true;
 } {
 	result : RET;
-	result.amount = xx pow(a.amount, 1.0 / exp.exp);
+	result.amount = xx root(a.amount, 1.0 / EXP);
 	return result;
 }
 
-sqrt :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, 1))(exp=2);
-sqrt :: #bake_arguments (#procedure_of_call root(metres(int), 1))(exp=2);
+sqrt :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, ExpHolder(2).{}))(e=ExpHolder(2).{});
+sqrt :: #bake_arguments (#procedure_of_call root(metres(), ExpHolder(2).{}))(e=ExpHolder(2).{});
 squareRoot :: sqrt;
-cubeRoot :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, 1))(exp=3);
-cubeRoot :: #bake_arguments (#procedure_of_call root(metres(int), 1))(exp=3);
+cubeRoot :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, ExpHolder(3).{}))(e=ExpHolder(3).{});
+cubeRoot :: #bake_arguments (#procedure_of_call root(metres(), ExpHolder(3).{}))(e=ExpHolder(3).{});
 
 //TODO: derived units, e.g. Newtons, Joules, etc. with their own names and conversion factors, but still compatible with the base units for multiplication/division purposes.
-
-formatLong :: (v: Any) -> FormatStruct {
-	return FormatStruct.{
-		value = v,
-		draw_type_name = true,
-		use_long_form_if_more_than_this_many_members = -1,
-		use_newlines_if_long_form = true,
-		begin_string = "\e[91m.{\e[92m",
-		end_string = "\e[91m}\e[0m",
-		separator_between_name_and_value = "\e[93m = \e[94m",
-		long_form_separator_between_fields = "\e[95m;\e[92m",
-		recursive_long_form_depth = -1,
-	};
-}
+JA
+);
 
 #import "Basic";
 #import "Compiler";
