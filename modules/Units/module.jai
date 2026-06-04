@@ -1,6 +1,81 @@
-#module_parameters ()(AMERICAN_SPELLING := false, UNTYPED_ADD_SUBTRACT := false);
+#module_parameters ()(AMERICAN_SPELLING := true, UNTYPED_ADD_SUBTRACT := false, WANTED_UNITS := SIQuantities.ALL_SI_UNITS) {
+	SIQuantities :: enum_flags u64 {
+		NONE :: 0;
 
-#if AMERICAN_SPELLING {
+		LENGTH				:: 1 << 0;
+		MASS				:: 1 << 1;
+		TIME				:: 1 << 2;
+		ELECTRIC_CURRENT	:: 1 << 3;
+		TEMPERATURE			:: 1 << 4;
+		AMOUNT_OF_SUBSTANCE	:: 1 << 5;
+		LUMINOUS_INTENSITY	:: 1 << 6;
+		ALL_SI_UNITS		:: 0x0000_0000_007F;
+
+		RADIANS				:: 1 << 7;
+		STERADIANS			:: 1 << 8;
+		DEGREES				:: 1 << 9;
+		ARC_MINUTES			:: 1 << 10;
+		ARC_SECONDS			:: 1 << 11;
+		ALL_ANGLES			:: 0x0000_0000_0F80;
+
+		MINUTES				:: 1 << 12;
+		HOURS				:: 1 << 13;
+		DAYS				:: 1 << 14;
+		WEEKS				:: 1 << 15;
+		HERTZ				:: 1 << 16;
+		ALL_TIME			:: 0x0000_001F_F000;
+
+		ASTRONOMICAL_UNITS	:: 1 << 17;
+		LIGHT_YEARS			:: 1 << 18;
+		PARSECS				:: 1 << 19;
+		ALL_ASTRONOMICAL	:: 0x0000_0003_8000;
+
+		NEWTONS				:: 1 << 20;
+		PASCALS				:: 1 << 21;
+		JOULES				:: 1 << 22;
+		WATTS				:: 1 << 23;
+		ALL_MECHANICS		:: 0x0000_F000_0000;
+
+		COULOMBS			:: 1 << 24;
+		VOLTS				:: 1 << 25;
+		OHMS				:: 1 << 26;
+		SIEMENS				:: 1 << 27;
+		FARADS				:: 1 << 28;
+		HENRYS				:: 1 << 29;
+		WEBERS				:: 1 << 30;
+		TESLAS				:: 1 << 31;
+		ALL_ELECTRICITY		:: 0x0000_FF00_0000;
+
+		LUMENS				:: 1 << 32;
+		LUX					:: 1 << 33;
+		ALL_PHOTOMETRY		:: 0x0003_0000_0000;
+
+		BECQUERELS			:: 1 << 34;
+		GRAYS				:: 1 << 35;
+		SIEVERTS			:: 1 << 36;
+		KATALS				:: 1 << 37;
+		ALL_RADIOACTIVITY	:: 0x003C_0000_0000;
+
+		CELSIUS				:: 1 << 38;
+		FAHRENHEIT			:: 1 << 39;
+		COMMON_TENPERATURES	:: 0x0060_0000_0000;
+		RANKINE				:: 1 << 40;
+		REAUER				:: 1 << 41;
+		ROMER				:: 1 << 42;
+		DELISLE				:: 1 << 43;
+		DEGREES_NEWTON		:: 1 << 44;
+		ALL_TEMPERATURES	:: 0x7FF0_0000_0000;
+
+		ALL_DERIVED_UNITS	:: 0xFFFF_FFFF_FF80;
+
+		EVERYTHING			:: 0xFFFF_FFFF_FFFF;
+	};
+};
+
+#assert WANTED_UNITS != .NONE;
+#assert WANTED_UNITS & ~.EVERYTHING == .NONE;
+
+#if AMERICAN_SPELLING && WANTED_UNITS & .LENGTH {
 	Meter :: Metre;
 	Meters :: Metres;
 	meter :: metre;
@@ -43,8 +118,8 @@ fieldsTemplate :: (template: string, joiner := "", alt: (name: string) -> string
 	}
 
 	for enum_names(SIUnit) {
-		// Skip NONE:
-		if !it_index  continue;
+		// Skip NONE & American spelling:
+		if !it_index || it == "Meter"  continue;
 
 
 		if it_index > 1 {
@@ -78,23 +153,103 @@ join :: (things: ..() -> string) -> string {
 
 SIUnit :: enum {
 	NONE;
+#if WANTED_UNITS & .LENGTH {
 	Metre;
+	#if AMERICAN_SPELLING {
+	Meter :: Metre;
+	}
+}
+#if WANTED_UNITS & .MASS {
 	Kilogram;
+}
+#if WANTED_UNITS & .TIME {
 	Second;
+}
+#if WANTED_UNITS & .ELECTRICITY {
 	Ampere;
+}
+#if WANTED_UNITS & .TEMPERATURE {
 	Kelvin;
+}
+#if WANTED_UNITS & .AMOUNT_OF_SUBSTANCE {
 	Mole;
+}
+#if WANTED_UNITS & .LUMINOUS_INTENSITY {
 	Candela;
 }
+}
+
+/*
+Standard SI derived units with special names and definitions in terms of the 7 SI base units:
+	Angles
+		radian (rad)			= m/m			=	dimensionless (angle)
+		steradian (sr)			= m^2/m^2		=	dimensionless (solid angle)
+		degree (°)				= π/180 rad
+		arcminute (′)			= 1/60 degree
+		arcsecond (″)			= 1/60 arcminute
+
+	Time & frequency
+		second (s)				= base unit
+		minute (min)			= 60 s
+		hour (h)				= 3600 s
+		day (d)					= 86400 s
+		week (wk)				= 7 d
+		hertz (Hz)				= 1/s
+
+	Length & astronomical
+		metre (m)				= base unit
+		astronomical unit (au)	= 149597870700 m
+		light-year (ly)			= 9.4607304725808e15 m
+		parsec (pc)				= 3.08567756e16 m
+
+	Mechanics (force, pressure, energy, power)
+		kilogram (kg)			= base unit
+		newton (N)				= kg*m/s^2
+		pascal (Pa)				= kg/(m*s^2)
+		joule (J)				= kg*m^2/s^2
+		watt (W)				= kg*m^2/s^3
+
+	Electricity & magnetism
+		ampere (A)				= base unit
+		coulomb (C)				= A*s
+		volt (V)				= kg*m^2/(s^3*A)
+		ohm (Ω)					= kg*m^2/(s^3*A^2)
+		siemens (S)				= s^3*A^2/(kg*m^2)
+		farad (F)				= s^4*A^2/(kg*m^2)
+		henry (H)				= kg*m^2/(s^2*A^2)
+		weber (Wb)				= kg*m^2/(s^2*A)
+		tesla (T)				= kg/(s^2*A)
+
+	Photometry
+		lumen (lm)				= cd
+		lux (lx)				= cd/m^2
+
+	Radioactivity, radiation, catalysis
+		becquerel (Bq)			= 1/s
+		gray (Gy)				= m^2/s^2
+		sievert (Sv)			= m^2/s^2
+		katal (kat)				= mol/s^1
+
+	Temperature
+		kelvin (K)				= base unit
+		degree Celsius (°C)		= K - 273.15
+		degree Fahrenheit (°F)	= 5/9(K - 255.372222)
+		//MAYBE: not sure we need ones quite so specific out of the box.
+		degree Rankine (°R)		= 5/9 K
+		degree Réaumur (°Ré)	= 0.8 K
+		degree Rømer (°Rø)		= 0.525 K + 7.5 °N
+		degree Delisle (°De)	= 1.5*(373.15 K - K)
+		degree Newton (°N)		= 0.33 K
+*/
 
 #insert #run join(
-	() => #string JA
+	() => #string JAI
 SIQuantity :: struct(
 	DataType: Type,
 
-JA,
-	() => fieldsTemplate("\t%Num: int, %1Denom: int, %1Exp: int", ",\n"),
-	() => #string JA
+JAI,
+	() => fieldsTemplate("\t%Num: int, %1Denom: int, %1Exp: int, %1Scale: float, %1Offset: float", ",\n"),
+	() => #string JAI
 
 )
 {
@@ -105,9 +260,9 @@ SIQuantityTypeParams :: struct {
 	#insert #run,stallable -> string {
 		sb: String_Builder;
 
-JA,
+JAI,
 	() => fieldsTemplate("0,0,0", ",", prefix="\t\tti := type_info(SIQuantity(int,", suffix="));\n"),
-	() => #string JA
+	() => #string JAI
 		for ti.specified_parameters {
 			print(*sb, "\t%: %;\t// @ %\n", it.name, get_type(it.type), it.offset_into_constant_storage);
 		}
@@ -142,14 +297,14 @@ getSIParameters :: (t: Type) -> SIQuantityTypeParams {
 }
 
 SI :: (parameters: SIQuantityTypeParams) -> string #expand #compile_time {
-JA,
+JAI,
 	() => fieldsTemplate(
 		"\t%Num=parameters.%1Num, %1Denom=parameters.%1Denom, %1Exp=parameters.%1Exp",
 		",\n",
 		prefix="return #string JAI\n#bake_arguments SIQuantity(\n",
 		suffix="\n);\nJAI;"
 	),
-	() => #string JA
+	() => #string JAI
 }
 
 #scope_file
@@ -157,27 +312,27 @@ JA,
 normalise :: (pp: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	p := pp;
 	d: int = ---;
-JA,
+JAI,
 	() => fieldsTemplate(
-		#string JA
+		#string JAI
 	if p.%Num && p.%1Denom {
 		d = gcd(p.%1Num, p.%1Denom);
 		p.%1Num /= d;
 		p.%1Denom /= d;
 	}
-JA,
+JAI,
 		"\n"
 	),
-	() => #string JA
+	() => #string JAI
 
 	return p;
 }
 
 #scope_export
 
-JA,
+JAI,
 	() => fieldsTemplate(
-		#string JA
+		#string JAI
 %2 :: inline (mod: (q: SIQuantityTypeParams) -> SIQuantityTypeParams, p: SIQuantityTypeParams = .{}) -> SIQuantityTypeParams {
 	return %2(p, mod);
 }
@@ -197,11 +352,11 @@ JA,
 	return normalise(p);
 }
 %2s :: %2;
-JA,
+JAI,
 		"\n",
 		name => lowerInitial(name)
 	),
-	() => #string JA
+	() => #string JAI
 
 #scope_file
 
@@ -209,14 +364,14 @@ mult :: (pp: SIQuantityTypeParams, n: u64, name: string) -> SIQuantityTypeParams
 	p := pp;
 
 	if p.lastSet == {
-JA,
+JAI,
 	() => fieldsTemplate(
-		#string JA
+		#string JAI
 		case .%;
 			p.%1Num *= n;
-JA
+JAI
 	),
-	() => #string JA
+	() => #string JAI
 		case;
 			assert(false, "Can only apply % to a base SI unit.", name);
 	}
@@ -228,14 +383,14 @@ div :: (pp: SIQuantityTypeParams, n: u64, name: string) -> SIQuantityTypeParams 
 	p := pp;
 
 	if p.lastSet == {
-JA,
+JAI,
 	() => fieldsTemplate(
-		#string JA
+		#string JAI
 		case .%;
 			p.%1Denom *= n;
-JA
+JAI
 	),
-	() => #string JA
+	() => #string JAI
 		case;
 			assert(false, "Can only apply % to a base SI unit.", name);
 	}
@@ -243,7 +398,7 @@ JA
 	return p;
 }
 
-JA,
+JAI,
 	() -> string {
 		big		:: string.["kilo",	"mega",	"giga",	"tera",	"peta",	"exa",	/* Too big for int: "zetta", "yotta"*/];
 		small	:: string.["milli",	"micro","nano",	"pico",	"femto","atto",	/* Too big for int: "zepto", "yocto"*/];
@@ -252,12 +407,12 @@ JA,
 
 		common :: (n: u64, it: string, proc: string) -> string {
 			return tprint(
-				#string JA
- % :: (p: SIQuantityTypeParams) -> SIQuantityTypeParams {
+				#string JAI
+% :: (p: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	return %(p, %, "%1");
 }
 
-JA,
+JAI,
 				it,
 				proc,
 				n
@@ -281,20 +436,20 @@ JA,
 
 		return builder_to_string(*sb);
 	},
-	() => #string JA
+	() => #string JAI
 
 per :: (pp: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	p := pp;
 
 	if p.lastSet == {
-JA,
+JAI,
 	() => fieldsTemplate(
-		#string JA
+		#string JAI
 		case .%;
 			p.%1Exp = -p.%1Exp;
-JA
+JAI
 	),
-	() => #string JA
+	() => #string JAI
 
 		case;
 			assert(false, "Can only apply per to a base SI unit.");
@@ -305,15 +460,15 @@ JA
 
 #scope_file
 
-JA,
+JAI,
 	() => fieldsTemplate(
-		#string Ja
+		#string Jai
 % :: #insert #run,stallable SI(%());
-Ja,
+Jai,
 		"\n",
 		name => lowerInitial(name)
 	),
-	() => #string JA
+	() => #string JAI
 
 modCheck :: (ok: bool, errorMessage: string, args: ..Any) -> bool #expand {
 	if !ok {
@@ -333,30 +488,30 @@ dataTypesMatch :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> b
 
 ratiosCompatible :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
 	ok := true;
-JA,
+JAI,
 	() => fieldsTemplate("\tok &&= a.%Num == b.%1Num && a.%1Denom == b.%1Denom || !a.%1Num || !b.%1Num;", "\n"),
-	() => #string JA
+	() => #string JAI
 	return ok;
 }
 
 ratiosEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
-JA,
+JAI,
 	() => fieldsTemplate("a.%Num == b.%1Num && a.%1Denom == b.%1Denom", "\n\t\t&& ", prefix="return ", suffix=";"),
-	() => #string JA
+	() => #string JAI
 }
 
 exponentsEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
-JA,
+JAI,
 	() => fieldsTemplate("a.%Exp == b.%1Exp", "\n\t\t&& ", prefix="return ", suffix=";"),
-	() => #string JA
+	() => #string JAI
 }
 
-EXPONENTS_TEMPLATE :: #string TEMPLATE_Ja
+EXPONENTS_TEMPLATE :: #string TEMPLATE_JAI
 (a: *SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	// The |= below is safe as by now either both exponents are the same or one is zero:
-JA,
+JAI,
 	() => fieldsTemplate(
-		#string JA
+		#string JAI
 	a.%Exp \%1= b.%1Exp;
 	if a.%1Exp {
 		a.%1Num |= b.%1Num;
@@ -365,14 +520,14 @@ JA,
 		a.%1Num = 0;
 		a.%1Denom = 0;
 	}
-JA,
+JAI,
 		"\n"
 	),
-	() => #string JA
+	() => #string JAI
 
 	return a;
 }
-TEMPLATE_Ja;
+TEMPLATE_JAI;
 
 addExponents :: #insert #run tprint(EXPONENTS_TEMPLATE, "+");
 subtractExponents :: #insert #run tprint(EXPONENTS_TEMPLATE, "-");
@@ -382,22 +537,24 @@ validate :: (p: SIQuantityTypeParams) #expand {
 }
 
 buildReturnType :: inline (a: SIQuantityTypeParams) #expand {
-JA,
+JAI,
 	() => fieldsTemplate(
 		"\t\t%Num=a.%1Num, %1Denom=a.%1Denom, %1Exp=a.%1Exp",
 		",\n",
-		prefix=#string JA
+		prefix=#string JAI
 `RET = #dynamic_specialize SIQuantity(
 		DataType=a.DataType,
-JA,
-		suffix="\n\t);"
+JAI,
+		suffix="\n\t);\n"
 	),
-	() => #string JA
+	() => #string JAI
 }
 
 #scope_export
 
 //TODO: alt ones for different types with the same unit but different ratios, e.g. grams vs kilograms
+//FIXME: SIQuantityTypeParams +- float -> lastSet.offset
+//FIXME: SIQuantityTypeParams */ float -> lastSet.scale
 operator + :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	modCheck(*a, dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
 	modCheck(*a, ratiosEqual(a, b), "UnitsError: Can only add quantities with same ratios.\n  a: [%]\n  b: [%]\n", a, b);
@@ -501,9 +658,9 @@ pow :: (pp: SIQuantityTypeParams, e: ExpHolder($EXP)) -> SIQuantityTypeParams {
 
 	#insert #run tprint(
 		#string Jai
-JA,
+JAI,
 	() => fieldsTemplate("\tp.%Exp *= \%1;", "\n"),
-	() => #string JA
+	() => #string JAI
 
 Jai,
 		EXP
@@ -540,7 +697,7 @@ root :: (pp: SIQuantityTypeParams, e: ExpHolder($EXP)) -> SIQuantityTypeParams {
 	// Exponents must be divisible by exp//LATER: consider fractional exponents?
 	#insert #run tprint(
 		#string Jai
-JA,
+JAI,
 	() => fieldsTemplate("p.%Exp \\\\\\% \\%1", " && ", prefix="\tif ", suffix=#string JAI
  {
 		p.validationError = tprint("\\nUnitsError: Can not apply \\\%1root to non-multiples of \\\%1.\\n[\%]\\n", p);
@@ -548,15 +705,15 @@ JA,
 	}
 JAI
 	),
-	() => #string JA
+	() => #string JAI
 		EXP
 	);
 
 	#insert #run tprint(
 		#string Jai
-JA,
+JAI,
 	() => fieldsTemplate("\tp.%Exp *= \%1;", "\n"),
-	() => #string JA
+	() => #string JAI
 
 Jai,
 		EXP
@@ -585,8 +742,41 @@ squareRoot :: sqrt;
 cubeRoot :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, ExpHolder(3).{}))(e=ExpHolder(3).{});
 cubeRoot :: #bake_arguments (#procedure_of_call root(metres(), ExpHolder(3).{}))(e=ExpHolder(3).{});
 
-//TODO: derived units, e.g. Newtons, Joules, etc. with their own names and conversion factors, but still compatible with the base units for multiplication/division purposes.
-JA
+//TEST: can we handle dimensionless units?
+#if WANTED_UNITS & .RADIANS {
+	Radian :: #insert #run,stallable SI(meter(per(meter())));
+}
+#if WANTED_UNITS & .STERADIANS {
+	Steradian :: #insert #run,stallable SI(meter(squared(per(meter(squared)))));
+}
+#if WANTED_UNITS & .DEGREES {
+	Degree :: #insert #run,stallable SI(meter(per(meter() * (180.0 / PI64))));
+}
+#if WANTED_UNITS & .ARC_MINUTES {
+	ArcMinute :: #insert #run,stallable SI(meter(per(meter() * (180.0 / (PI64 * 60.0)))));
+}
+#if WANTED_UNITS & .ARC_SECONDS {
+	ArcSecond :: #insert #run,stallable SI(meter(per(meter() * (180.0 / (PI64 * 60.0 * 60.0)))));
+}
+
+#if WANTED_UNITS & .NINUTES {
+	Minute :: #insert #run,stallable SI(second() * 60.0);
+}
+#if WANTED_UNITS & .HOURS {
+	Hour :: #insert #run,stallable SI(second() * 60.0 * 60.0);
+}
+#if WANTED_UNITS & .DAYS {
+	Day :: #insert #run,stallable SI(second() * 60.0 * 60.0 * 24.0);
+}
+#if WANTED_UNITS & .WEEKS {
+	Week :: #insert #run,stallable SI(second() * 60.0 * 60.0 * 24.0 * 7.0);
+}
+#if WANTED_UNITS & .HERTZ {
+	Hertz :: #insert #run,stallable SI(per(second()));
+}
+
+//TODO: the rest of the derived units...
+JAI
 );
 
 #import "Basic";

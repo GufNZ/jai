@@ -74,13 +74,19 @@ message_loop :: (w: Workspace) {
 						return hasNote(body.header, "doConvert") && filenameIs(body.header, "astTests.jai");
 					}
 				) {
-					log("Typechecked procedure header: %'%' from '%:%,%'\n",
+					log("Typechecked procedure header: %'%' from '%:%:%'\n",
 						body.body_flags,
 						body.header.name,
 						body.header.location.enclosing_load.fully_pathed_filename,
 						body.header.location.l0,
 						body.header.location.c1
 					);
+					if body.body_flags & .ALREADY_MODIFIED {
+						log("Already modified, skipping.\n");
+						continue;
+					}
+
+
 					b: String_Builder;
 					print_expression(*b, body.block);
 					print("Before:\n%\n\n", builder_to_string(*b));
@@ -97,7 +103,7 @@ message_loop :: (w: Workspace) {
 					);
 					print_expression(*b, convertedBody.block);
 					print("After:\n%\n\n", builder_to_string(*b));
-					//compiler_modify_procedure(w, bodyCode);
+					compiler_modify_procedure(w, convertedBody);
 				}
 
 			//case .PHASE;

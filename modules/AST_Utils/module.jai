@@ -246,25 +246,6 @@ pathContains :: (node: *Code_Node, needle: string) -> bool {
 	return false;
 }
 
-//FilterAST :: struct (NodeType: Type, $FilteredNodeType: Type) {
-//	startNodes: [..]*NodeType;
-//	predicate: (node: *FilteredNodeType) -> bool;
-//}
-
-//TransformAST :: struct (NodeType: Type, Kind: int, $FilteredNodeType: Type = void, $TransformedNodeType: Type)
-//#modify {
-//	FilteredNodeType = NodeKindToNodeType[Kind];
-//	return FilteredNodeType != void, tprint("TransformAST: Invalid node kind %", Kind);
-//} {
-//	startNodes: [..]*NodeType;
-//	predicate: (node: *FilteredNodeType) -> bool;
-//	transform: (node: *FilteredNodeType) -> *TransformedNodeType;
-//}
-
-//nodeKind :: (kind: NodeKind) -> Type {
-//	return NodeKindToNodeType[xx kind];
-//}
-
 filterASTNodes :: (nodes: []*$NodeType, predicate: (node: *$FilteredNodeType) -> bool) -> []*FilteredNodeType {
 	if !NodeTypeToNodeKind.count {
 		for NodeKindToNodeType {
@@ -724,56 +705,3 @@ walkAST :: (quiet: bool, node: *$T/Code_Node, userData: $D, handler: (userData: 
 
 	return node;
 }
-
-/*
-filterAST :: ($nodeKind: NodeKind, x: *$FilteredNodeType = null) -> $RET
-#modify {
-	FilteredNodeType = NodeKindToNodeType[xx nodeKind];
-	RET = ($startNodes: []*$NodeType, predicate: (node: *FilteredNodeType) -> bool) -> FilterAST(NodeType, FilteredNodeType);
-	return FilteredNodeType != void, tprint("filterAST: Invalid node kind %", nodeKind);
-} {
-	return ($startNodes: []*$NodeType, predicate: (node: *FilteredNodeType) -> bool) -> FilterAST(NodeType, FilteredNodeType).{ startNodes, predicate };
-}
-*/
-//filterAST :: (startNodes: []*$NodeType, FilteredNodeType: Type, predicate: (node: *FilteredNodeType) -> bool) -> FilterAST(NodeType, FilteredNodeType) {
-//	return FilterAST(NodeType, FilteredNodeType).{ startNodes, predicate };
-//}
-
-//for_expansion :: (filterAST: FilterAST($NodeType, $nodeKind), body: Code, flags: For_Flags) #expand {
-//	for *=(flags & .POINTER) <=(flags & .REVERSE) node, index: filterAST.startNodes {
-//		if filterAST.predicate(it) {
-//			`it = node;
-//			`it_index = index;
-//			#insert body;
-//		}
-//	}
-//}
-
-/*
-filterAST :: (startNodes: []*$NodeType, $nodeKind: NodeKind, predicate: (node: *$FilteredNodeType) -> bool) -> []*FilteredNodeType
-#modify {
-	FilteredNodeType = NodeKindToNodeType[xx nodeKind];//BUG: can't read this arg's value.  Might need to make filterAST a struct with generic parameters instead of a procedure with generic parameters, and add a for_expansion.
-	return FilteredNodeType != void, tprint("filterAST: Invalid node kind %", nodeKind);
-} {
-	result: [..]FilteredNodeType;
-	for startNodes {
-		if startNode.kind == nodeKind {
-			node := startNode.(*FilteredNodeType);
-			if predicate(node) {
-				result = array_add(*result, node);
-			}
-		}
-	}
-	return result;
-}
-
-
-filterAST :: (startNode: *$NodeType, $nodeKind: NodeKind, predicate: (node: *$FilteredNodeType) -> bool, transform: (node: *FilteredNodeType) -> *$TransformedNodeType) -> NodeType
-#modify {
-	FilteredNodeType = NodeKindToNodeType[xx nodeKind];
-	return FilteredNodeType != void, tprint("filterAST: Invalid node kind %", nodeKind);
-} {
-	//TODO: walk the expression tree recursively, and for any node that matches nodeKind and predicate, replace it with transform(node).
-	return startNode;
-}
-*/
