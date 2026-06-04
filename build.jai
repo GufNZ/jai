@@ -37,8 +37,18 @@ convertToLiteral :: (expr: *Code_Procedure_Call) -> *Code_Literal {
 	return result;
 }
 
-formatLong :: (x: $T) -> FormatStruct {
-	return FormatStruct.{ value=x, use_long_form_if_more_than_this_many_members=-1, use_newlines_if_long_form=true, draw_type_name=true };
+formatLong :: (v: Any) -> FormatStruct {
+	return FormatStruct.{
+		value = v,
+		draw_type_name = true,
+		use_long_form_if_more_than_this_many_members = -1,
+		use_newlines_if_long_form = true,
+		begin_string = "\e[91m.{\e[92m",
+		end_string = "\e[91m}\e[0m",
+		separator_between_name_and_value = "\e[93m = \e[94m",
+		long_form_separator_between_fields = "\e[95m;\e[92m",
+		recursive_long_form_depth = -1,
+	};
 }
 
 message_loop :: (w: Workspace) {
@@ -78,8 +88,9 @@ message_loop :: (w: Workspace) {
 					convertedBody := transformAST(
 						body,
 						(call: *Code_Procedure_Call) -> bool {
-							print("Checking call: %\n", call.procedure_expression);
-							return call.resolved_procedure_expression.kind == .PROCEDURE_HEADER
+							//print("Checking call: \e[94m%\e[0m\n", call.procedure_expression.(*Code_Ident).name);
+							return call.resolved_procedure_expression
+								&& call.resolved_procedure_expression.kind == .PROCEDURE_HEADER
 								&& call.resolved_procedure_expression.(*Code_Procedure_Header).name == "convert";
 						},
 						call => convertToLiteral(xx call.arguments_unsorted[0].expression)

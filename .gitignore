@@ -13,3 +13,7 @@
 */.build
 *.prj
 *.rdi
+**/.build/*
+/AdventOfCode/*
+
+/Copyright.txt
