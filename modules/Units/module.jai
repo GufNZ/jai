@@ -810,8 +810,6 @@ operator / :: (a: $T/SIQuantity, b: T.DataType) -> T {
 	return result;
 }
 
-#assert 1.0/second() == per(second());
-
 ExpHolder :: struct(exp: int) { EXP :: exp; }
 
 pow :: (pp: SIQuantityTypeParams, e: ExpHolder($EXP)) -> SIQuantityTypeParams {

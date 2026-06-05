@@ -11,6 +11,8 @@ Kilometers :: #insert #run SI(kilo(meters()));
 KilometersPerSecond :: #insert #run SI(kilo(meters(per(second()))));
 KilometersPerSecondSquared :: #insert #run SI(kilo(meters(per(second(squared)))));
 
+#assert 1.0/second() == per(second());
+
 run_all :: () {
 	// Placeholder for grouped test calls.
 }
