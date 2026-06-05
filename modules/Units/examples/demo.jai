@@ -27,12 +27,12 @@ main :: () {
 	print("%\n", formatLong(range2));
 }
 
-MetersPerSecond :: #insert #run,stallable SI(meters(per(second())));
-MetersPerSecondSquared :: #insert #run,stallable SI(meters(per(second(squared))));
+MetersPerSecond :: #insert #run SI(meters(per(second())));
+MetersPerSecondSquared :: #insert #run SI(meters(per(second(squared))));
 
-Kilometers :: #insert #run,stallable SI(kilo(meters()));
-KilometersPerSecond :: #insert #run,stallable SI(kilo(meters(per(second()))));
-KilometersPerSecondSquared :: #insert #run,stallable SI(kilo(meters(per(second(squared)))));
+Kilometers :: #insert #run SI(kilo(meters()));
+KilometersPerSecond :: #insert #run SI(kilo(meters(per(second()))));
+KilometersPerSecondSquared :: #insert #run SI(kilo(meters(per(second(squared)))));
 
 calc_ballistic_range :: (
 	speed: MetersPerSecond(float),

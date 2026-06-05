@@ -5,7 +5,7 @@
 		LENGTH				:: 1 << 0;
 		MASS				:: 1 << 1;
 		TIME				:: 1 << 2;
-		ELECTRIC_CURRENT	:: 1 << 3;
+		ELECTRICITY			:: 1 << 3;
 		TEMPERATURE			:: 1 << 4;
 		AMOUNT_OF_SUBSTANCE	:: 1 << 5;
 		LUMINOUS_INTENSITY	:: 1 << 6;
@@ -82,11 +82,13 @@
 	meters :: metres;
 }
 
-//dump :: (s: $T, loc := #caller_location) -> T {
-//	print("\e[92mDump at %:%:%\e[0m\n", loc.fully_pathed_filename, loc.line_number, loc.character_number);
-//	print("\e[93m%\e[0m\n\n", replace(s, "\%", "\\%"));
-//	return s;
-//}
+/*
+dump :: (s: $T, loc := #caller_location) -> T {
+	print("\e[92mDump at %:%:%\e[0m\n", loc.fully_pathed_filename, loc.line_number, loc.character_number);
+	print("\e[93m%\e[0m\n\n", replace(s, "\%", "\\%"));
+	return s;
+}
+*/
 
 gcd :: (a: int, b: int) -> int {
 	while b {
@@ -261,7 +263,7 @@ SIQuantityTypeParams :: struct {
 		sb: String_Builder;
 
 JAI,
-	() => fieldsTemplate("0,0,0", ",", prefix="\t\tti := type_info(SIQuantity(int,", suffix="));\n"),
+	() => fieldsTemplate("0,0,0,0,0", ",", prefix="\t\tti := type_info(SIQuantity(int,", suffix="));\n"),
 	() => #string JAI
 		for ti.specified_parameters {
 			print(*sb, "\t%: %;\t// @ %\n", it.name, get_type(it.type), it.offset_into_constant_storage);
@@ -299,7 +301,7 @@ getSIParameters :: (t: Type) -> SIQuantityTypeParams {
 SI :: (parameters: SIQuantityTypeParams) -> string #expand #compile_time {
 JAI,
 	() => fieldsTemplate(
-		"\t%Num=parameters.%1Num, %1Denom=parameters.%1Denom, %1Exp=parameters.%1Exp",
+		"\t%Num=parameters.%1Num, %1Denom=parameters.%1Denom, %1Exp=parameters.%1Exp, %1Scale=parameters.%1Scale, %1Offset=parameters.%1Offset",
 		",\n",
 		prefix="return #string JAI\n#bake_arguments SIQuantity(\n",
 		suffix="\n);\nJAI;"
@@ -400,7 +402,7 @@ JAI
 
 JAI,
 	() -> string {
-		big		:: string.["kilo",	"mega",	"giga",	"tera",	"peta",	"exa",	/* Too big for int: "zetta", "yotta"*/];
+		big		:: string.["kilo",	"mega",	"giga",	"tera",	"peta",	"exa",	/* Too big for int: "zetta", "yotta"*/];//LATER: we could support the last 2 via .scale after we cap out the integers.
 		small	:: string.["milli",	"micro","nano",	"pico",	"femto","atto",	/* Too big for int: "zepto", "yocto"*/];
 
 		//bigBinary :: string.["kibi", "mebi", "gibi", "tebi", "pebi", "exbi", /* Too big for int: "zebi", "yobi"*/];
@@ -539,7 +541,7 @@ validate :: (p: SIQuantityTypeParams) #expand {
 buildReturnType :: inline (a: SIQuantityTypeParams) #expand {
 JAI,
 	() => fieldsTemplate(
-		"\t\t%Num=a.%1Num, %1Denom=a.%1Denom, %1Exp=a.%1Exp",
+		"\t\t%Num=a.%1Num, %1Denom=a.%1Denom, %1Exp=a.%1Exp, %1Scale=a.%1Scale, %1Offset=a.%1Offset",
 		",\n",
 		prefix=#string JAI
 `RET = #dynamic_specialize SIQuantity(
@@ -553,11 +555,31 @@ JAI,
 #scope_export
 
 //TODO: alt ones for different types with the same unit but different ratios, e.g. grams vs kilograms
+//TEST: different types with the same unit but different scales, e.g. kelvin vs farenheit
 //FIXME: SIQuantityTypeParams +- float -> lastSet.offset
 //FIXME: SIQuantityTypeParams */ float -> lastSet.scale
 operator + :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	modCheck(*a, dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
 	modCheck(*a, ratiosEqual(a, b), "UnitsError: Can only add quantities with same ratios.\n  a: [%]\n  b: [%]\n", a, b);
+
+	return a;
+}
+operator + :: (aa: SIQuantities, b: float64) -> SIQuantityTypeParams #symmetric {
+	a := aa;
+
+	if a.lastSet == {
+JAI,
+	() => fieldsTemplate(
+		#string JAI
+		case .%;
+			a.%1Offset += b;
+JAI
+	),
+	() => #string JAI
+
+		case;
+			assert(false, "Can only apply +offset to a base SI unit.");
+	}
 
 	return a;
 }
@@ -580,6 +602,45 @@ operator - :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTy
 
 	return a;
 }
+operator - :: (aa: SIQuantities, b: float64) -> SIQuantityTypeParams {
+	a := aa;
+
+	if a.lastSet == {
+JAI,
+	() => fieldsTemplate(
+		#string JAI
+		case .%;
+			a.%1Offset -= b;
+JAI
+	),
+	() => #string JAI
+
+		case;
+			assert(false, "Can only apply -offset to a base SI unit.");
+	}
+
+	return a;
+}
+operator - :: (b: float64, aa: SIQuantities) -> SIQuantityTypeParams {
+	a := aa;
+
+	if a.lastSet == {
+JAI,
+	() => fieldsTemplate(
+		#string JAI
+		case .%;
+			a.%1Offset += b;
+			a.%1Scale = -a.%1Scale;
+JAI
+	),
+	() => #string JAI
+
+		case;
+			assert(false, "Can only apply offset- to a base SI unit.");
+	}
+
+	return a;
+}
 operator - :: (a: $T/SIQuantity, b: T) -> T {
 	result: T;
 	result.amount = a.amount - b.amount;
@@ -599,6 +660,24 @@ operator * :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTy
 
 
 	addExponents(*a, b);
+
+	return a;
+}
+operator * :: (aa: SIQuantities, b: float64) -> SIQuantityTypeParams #symmetric {
+	a := aa;
+
+	if a.lastSet == {
+JAI,	() => fieldsTemplate(
+		#string JAI
+		case .%;
+			a.%1Scale *= b;
+JAI
+	),
+	() => #string JAI
+
+		case;
+			assert(false, "Can only apply *scale to a base SI unit.");
+	}
 
 	return a;
 }
@@ -631,6 +710,43 @@ operator / :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTy
 
 	return a;
 }
+operator / :: (aa: SIQuantities, b: float64) -> SIQuantityTypeParams {
+	a := aa;
+
+	if a.lastSet == {
+JAI,	() => fieldsTemplate(
+		#string JAI
+		case .%;
+			a.%1Scale /= b;
+JAI
+	),
+	() => #string JAI
+
+		case;
+			assert(false, "Can only apply /scale to a base SI unit.");
+	}
+
+	return a;
+}
+operator / :: (b: float64, aa: SIQuantities) -> SIQuantityTypeParams {
+	a := aa;
+
+	if a.lastSet == {
+JAI,	() => fieldsTemplate(
+		#string JAI
+		case .%;
+			a.%1Scale *= b;
+			a.%1Denom = -a.%1Denom;
+JAI
+	),
+	() => #string JAI
+
+		case;
+			assert(false, "Can only apply /scale to a base SI unit.");
+	}
+
+	return a;
+}
 operator / :: (x: $T/SIQuantity, y: $U/SIQuantity) -> $RET
 #modify {
 	a := getSIParameters(T);
@@ -650,6 +766,8 @@ operator / :: (a: $T/SIQuantity, b: T.DataType) -> T {
 	result.amount = a.amount / b;
 	return result;
 }
+
+#assert 1.0/second() == per(second());
 
 ExpHolder :: struct(exp: int) { EXP :: exp; }
 
@@ -759,23 +877,110 @@ cubeRoot :: #bake_arguments (#procedure_of_call root(metres(), ExpHolder(3).{}))
 	ArcSecond :: #insert #run,stallable SI(meter(per(meter() * (180.0 / (PI64 * 60.0 * 60.0)))));
 }
 
-#if WANTED_UNITS & .NINUTES {
+#if WANTED_UNITS & .MINUTES {
 	Minute :: #insert #run,stallable SI(second() * 60.0);
 }
 #if WANTED_UNITS & .HOURS {
-	Hour :: #insert #run,stallable SI(second() * 60.0 * 60.0);
+	Hour :: #insert #run,stallable SI(second() * (60.0 * 60.0));
 }
 #if WANTED_UNITS & .DAYS {
-	Day :: #insert #run,stallable SI(second() * 60.0 * 60.0 * 24.0);
+	Day :: #insert #run,stallable SI(second() * (60.0 * 60.0 * 24.0));
 }
 #if WANTED_UNITS & .WEEKS {
-	Week :: #insert #run,stallable SI(second() * 60.0 * 60.0 * 24.0 * 7.0);
+	Week :: #insert #run,stallable SI(second() * (60.0 * 60.0 * 24.0 * 7.0));
 }
 #if WANTED_UNITS & .HERTZ {
 	Hertz :: #insert #run,stallable SI(per(second()));
 }
 
-//TODO: the rest of the derived units...
+#if WANTED_UNITS & .ASTRONOMICAL_UNITS {
+	AstronomicalUnit :: #insert #run,stallable SI(meter() * 149597870700.0);
+}
+#if WANTED_UNITS & .LIGHT_YEARS {
+	LightYear :: #insert #run,stallable SI(meter() * 9.4607304725808e15);
+}
+#if WANTED_UNITS & .PARSECS {
+	Parsec :: #insert #run,stallable SI(meter() * 3.08567756e16);
+}
+
+#if WANTED_UNITS & .NEWTONS {
+	Newton :: #insert #run,stallable SI(kilogram() * meter(per(second(squared))));
+}
+#if WANTED_UNITS & .PASCALS {
+	Pascal :: #insert #run,stallable SI(kilogram() * per(meter() * second(squared())));
+}
+#if WANTED_UNITS & .JOULES {
+	Joule :: #insert #run,stallable SI(kilogram() * meter(squared(per(second(squared)))));
+}
+#if WANTED_UNITS & .WATTS {
+	Watt :: #insert #run,stallable SI(kilogram() * meter(squared(per(second(squared) * second()))));
+}
+#if WANTED_UNITS & .COULOMBS {
+	Coulomb :: #insert #run,stallable SI(ampere() * second());
+}
+#if WANTED_UNITS & .VOLTS {
+	Volt :: #insert #run,stallable SI(kilogram() * meter(squared(per(second(squared) * ampere()))));
+}
+#if WANTED_UNITS & .OHMS {
+	Ohm :: #insert #run,stallable SI(kilogram() * meter(squared(per(second(squared) * ampere(squared)))));
+}
+#if WANTED_UNITS & .SIEMENS {
+	Siemens :: #insert #run,stallable SI(second(squared) * ampere(squared(per(kilogram() * meter(squared)))));
+}
+#if WANTED_UNITS & .FARADS {
+	Farad :: #insert #run,stallable SI(second(squared) * ampere(squared(per(kilogram() * meter(squared)))));
+}
+#if WANTED_UNITS & .HENRYS {
+	Henry :: #insert #run,stallable SI(kilogram() * meter(squared(per(second(squared) * ampere(squared)))));
+}
+#if WANTED_UNITS & .WEBERS {
+	Weber :: #insert #run,stallable SI(kilogram() * meter(squared(per(second(squared) * ampere()))));
+}
+#if WANTED_UNITS & .TESLAS {
+	Tesla :: #insert #run,stallable SI(kilogram() * per(second(squared) * ampere()));
+}
+
+#if WANTED_UNITS & .LUMENS {
+	Lumen :: Candela;
+}
+#if WANTED_UNITS & .LUX {
+	Lux :: #insert #run,stallable SI(candela() * per(meter(squared)));
+}
+
+#if WANTED_UNITS & .BECQUERELS {
+	Becquerel :: #insert #run,stallable SI(per(second()));
+}
+#if WANTED_UNITS & .GRAYS {
+	Gray :: #insert #run,stallable SI(meter(squared) * per(second(squared)));
+}
+#if WANTED_UNITS & .SIEVERTS {
+	Sievert :: #insert #run,stallable SI(meter(squared) * per(second(squared)));
+}
+#if WANTED_UNITS & .KATALS {
+	Katal :: #insert #run,stallable SI(mole() * per(second()));
+}
+
+#if WANTED_UNITS & .CELSIUS {
+	Celsius :: #insert #run,stallable SI(kelvin() - 273.15);
+}
+#if WANTED_UNITS & .FAHRENHEIT {
+	Fahrenheit :: #insert #run,stallable SI((kelvin() - 255.372222) * (5.0 / 9.0));
+}
+#if WANTED_UNITS & .RANKINE {
+	Rankine :: #insert #run,stallable SI(kelvin() * (5.0 / 9.0));
+}
+#if WANTED_UNITS & .REAUER {
+	Reauer :: #insert #run,stallable SI(kelvin() * 0.8);
+}
+#if WANTED_UNITS & .ROMER {
+	Romer :: #insert #run,stallable SI(kelvin() * 0.525 + 7.5 * celsius());
+}
+#if WANTED_UNITS & .DELISLE {
+	Delisle :: #insert #run,stallable SI((373.15 - kelvin()) * 1.5);
+}
+#if WANTED_UNITS & .DEGREES_NEWTON {
+	DegreesNewton :: #insert #run,stallable SI(kelvin() * 0.33);
+}
 JAI
 );
 
