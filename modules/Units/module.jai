@@ -90,6 +90,8 @@ dump :: (s: $T, loc := #caller_location) -> T {
 }
 */
 
+// ====== File-Scope Helper Utilities ======
+
 gcd :: (a: int, b: int) -> int {
 	while b {
 		a, b = b, a % b;
@@ -150,6 +152,8 @@ join :: (things: ..() -> string) -> string {
 
 	return builder_to_string(*sb);
 }
+
+// ====== Base SI Unit Type System ======
 
 #scope_export
 
@@ -308,6 +312,8 @@ JAI,
 	() => #string JAI
 }
 
+// Normalize ratios (internal utility)
+
 #scope_file
 
 normalise :: (pp: SIQuantityTypeParams) -> SIQuantityTypeParams {
@@ -360,6 +366,8 @@ JAI,
 		name => lowerInitial(name)
 	),
 	() => #string JAI
+
+// ====== Prefix Multipliers and Unit Modifiers (hand-written) ======
 
 #scope_file
 
@@ -474,6 +482,8 @@ JAI
 	return p;
 }
 
+// ====== Unit Constants (generated) ======
+
 #scope_file
 
 JAI,
@@ -486,6 +496,8 @@ Jai,
 	),
 	() => #string JAI
 
+// ====== Compatibility & Validation Macros (hand-written) ======
+
 modCheck :: (ok: bool, errorMessage: string, args: ..Any) -> bool #expand {
 	if !ok {
 		`return false, tprint(errorMessage, ..args);
@@ -497,6 +509,8 @@ modCheck :: (p: *SIQuantityTypeParams, ok: bool, errorMessage: string, args: ..A
 		return p.*;
 	}
 };
+
+// ====== Unit Compatibility Predicates (hand-written) ======
 
 dataTypesMatch :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
 	return lhs.DataType == rhs.DataType;
@@ -624,6 +638,8 @@ ipow :: (base: float64, exponent: int) -> float64 {
 	return r;
 }
 
+// ====== Conversion Helper Structures (hand-written) ======
+
 AddSubConversion :: struct {
 	ok: bool = false;
 	mul: float64 = 1.0;
@@ -733,6 +749,8 @@ JAI,
 	() => #string JAI
 }
 
+// ====== Unit Constructor Builders (generated) ======
+
 #scope_export
 
 //TODO: alt ones for different types with the same unit but different ratios, e.g. grams vs kilograms
@@ -763,6 +781,8 @@ JAI
 
 	return a;
 }
+
+// ====== Core Type System & Arithmetic Operators ======
 
 // ====== Addition operator hierarchy ======
 //
@@ -1200,6 +1220,8 @@ sqrt :: #bake_arguments (#procedure_of_call root(metres(), ExpHolder(2).{}))(e=E
 squareRoot :: sqrt;
 cubeRoot :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, ExpHolder(3).{}))(e=ExpHolder(3).{});
 cubeRoot :: #bake_arguments (#procedure_of_call root(metres(), ExpHolder(3).{}))(e=ExpHolder(3).{});
+
+// ====== Public API: Conversion & Utility Functions ======
 
 unboxSI :: (x: $T/SIQuantity) -> T.DataType {
 	return x.amount;
