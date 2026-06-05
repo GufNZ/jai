@@ -552,9 +552,35 @@ validate :: (p: SIQuantityTypeParams) #expand {
 	modCheck(!p.validationError, p.validationError);
 }
 
+scalesEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+JAI,
+	() => fieldsTemplate("a.%Scale == b.%1Scale", "\n\t\t&& ", prefix="return ", suffix=";"),
+	() => #string JAI
+}
+
+offsetsEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+JAI,
+	() => fieldsTemplate("a.%Offset == b.%1Offset", "\n\t\t&& ", prefix="return ", suffix=";"),
+	() => #string JAI
+}
+
+isDimensionallyEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+	return dataTypesMatch(a, b) && exponentsEqual(a, b);
+}
+
+isStrictlyIdenticalUnits :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+	return isDimensionallyEqual(a, b) && ratiosEqual(a, b) && scalesEqual(a, b) && offsetsEqual(a, b);
+}
+
+isAddSubConvertible :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+	// Step 1 predicate: dimensional compatibility only. We will tighten this as
+	// affine conversion handling is added.
+	return isDimensionallyEqual(a, b);
+}
+
 isUnit :: (t: Type, p: SIQuantityTypeParams) -> bool #compile_time {
 	a := getSIParameters(t);
-	return ratiosEqual(a, p) && exponentsEqual(a, p);
+	return isStrictlyIdenticalUnits(a, p);
 }
 
 buildReturnType :: inline (a: SIQuantityTypeParams) #expand {
