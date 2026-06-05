@@ -21,6 +21,10 @@ MulMetersType :: type_of(Meters(float64).{2} * Kilometers(float64).{3});
 MulKilometersType :: type_of(Kilometers(float64).{3} * Meters(float64).{2});
 DivMetersType :: type_of(Meters(float64).{2000} / Kilometers(float64).{2});
 DivKilometersType :: type_of(Kilometers(float64).{2} / Meters(float64).{2000});
+MulVelMetersType :: type_of(MetersPerSecond(float64).{2} * KilometersPerSecond(float64).{3});
+MulVelKilometersType :: type_of(KilometersPerSecond(float64).{3} * MetersPerSecond(float64).{2});
+DivVelMetersType :: type_of(MetersPerSecond(float64).{2000} / KilometersPerSecond(float64).{2});
+DivVelKilometersType :: type_of(KilometersPerSecond(float64).{2} / MetersPerSecond(float64).{2000});
 
 // Mixed-ratio + and - should keep the lhs unit frame.
 #assert SumMetersType.MetreExp == 1 && SumMetersType.MetreNum == 1 && SumMetersType.MetreDenom == 1;
@@ -34,6 +38,17 @@ DivKilometersType :: type_of(Kilometers(float64).{2} / Meters(float64).{2000});
 #assert MulKilometersType.MetreExp == 2 && MulKilometersType.MetreNum == 1000 && MulKilometersType.MetreDenom == 1;
 #assert DivMetersType.MetreExp == 0 && DivMetersType.MetreNum == 0 && DivMetersType.MetreDenom == 0;
 #assert DivKilometersType.MetreExp == 0 && DivKilometersType.MetreNum == 0 && DivKilometersType.MetreDenom == 0;
+
+#assert MulVelMetersType.MetreExp == 2 && MulVelMetersType.MetreNum == 1 && MulVelMetersType.MetreDenom == 1;
+#assert MulVelMetersType.SecondExp == -2 && MulVelMetersType.SecondNum == 1 && MulVelMetersType.SecondDenom == 1;
+
+#assert MulVelKilometersType.MetreExp == 2 && MulVelKilometersType.MetreNum == 1000 && MulVelKilometersType.MetreDenom == 1;
+#assert MulVelKilometersType.SecondExp == -2 && MulVelKilometersType.SecondNum == 1 && MulVelKilometersType.SecondDenom == 1;
+
+#assert DivVelMetersType.MetreExp == 0 && DivVelMetersType.MetreNum == 0 && DivVelMetersType.MetreDenom == 0;
+#assert DivVelMetersType.SecondExp == 0 && DivVelMetersType.SecondNum == 0 && DivVelMetersType.SecondDenom == 0;
+#assert DivVelKilometersType.MetreExp == 0 && DivVelKilometersType.MetreNum == 0 && DivVelKilometersType.MetreDenom == 0;
+#assert DivVelKilometersType.SecondExp == 0 && DivVelKilometersType.SecondNum == 0 && DivVelKilometersType.SecondDenom == 0;
 
 // Offset metadata sanity checks for the conservative multiply/divide policy.
 #assert Kelvin(float64).KelvinOffset == 0;
@@ -80,9 +95,27 @@ test_mixed_ratio_mul_div_runtime :: () {
 	assert(d2.amount > 0.999999 && d2.amount < 1.000001);
 }
 
+test_mixed_ratio_derived_mul_div_runtime :: () {
+	v_m := MetersPerSecond(float64).{2.0};
+	v_km := KilometersPerSecond(float64).{3.0};
+
+	p1 := v_m * v_km;
+	assert(p1.amount > 5999.999 && p1.amount < 6000.001);
+
+	p2 := v_km * v_m;
+	assert(p2.amount > 0.005999 && p2.amount < 0.006001);
+
+	d1 := MetersPerSecond(float64).{2000.0} / KilometersPerSecond(float64).{2.0};
+	assert(d1.amount > 0.999999 && d1.amount < 1.000001);
+
+	d2 := KilometersPerSecond(float64).{2.0} / MetersPerSecond(float64).{2000.0};
+	assert(d2.amount > 0.999999 && d2.amount < 1.000001);
+}
+
 run_all :: () {
 	test_mixed_ratio_add_sub_runtime();
 	test_mixed_ratio_mul_div_runtime();
+	test_mixed_ratio_derived_mul_div_runtime();
 }
 
 main :: () {
