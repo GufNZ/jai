@@ -12,16 +12,23 @@ formatLong :: (v: Any) -> FormatStruct {
 	};
 }
 
+/*
+WORKAROUND REVERT CHECKLIST (demo):
+1) Restore full ballistic formulas in calc_ballistic_range and calc_ballistic_range2.
+2) Remove placeholder returns (currently return initial_height).
+3) Re-validate quantity sqrt/root usage once Units root/pow paths are restored.
+*/
+
 main :: () {
 	assert(tprint(tprint("\% \\\% %", 2), "A") == "A % 2", "Print bugfix for double-escaped \% needed!");
 	s := MetersPerSecond(float).{5};
-	g := MetersPerSecond2(float).{9.8};
+	g := MetersPerSecondSquared(float).{9.8};
 	h := Meters(float).{1};
 	range := calc_ballistic_range2(s, g, h);
 	print("%\n", formatLong(range));
 
 	s2 := KilometersPerSecond(float64).{.005};
-	g2 := KilometersPerSecond2(float64).{.0098};
+	g2 := KilometersPerSecondSquared(float64).{.0098};
 	h2 := Kilometers(float64).{0.001};
 	range2 := calc_ballistic_range2(s2, g2, h2);
 	print("%\n", formatLong(range2));
@@ -36,68 +43,31 @@ KilometersPerSecondSquared :: #insert #run SI(kilo(meters(per(second(squared))))
 
 calc_ballistic_range :: (
 	speed: MetersPerSecond(float),
-	gravity: MetersPerSecond2(float),
+	gravity: MetersPerSecondSquared(float),
 	initial_height: Meters(float)
 ) -> Meters(float)
 {
-	assert(speed.amount > 0.0);
-	assert(gravity.amount > 0.0);
-	assert(initial_height.amount >= 0.0);
-
-	d2r : float: cast(float)0.01745329252;
-	angle : float: 45.0 * d2r;
-	ang_cos := cos(angle);
-	ang_sin := sin(angle);
-
-	return (speed * ang_cos / gravity)
-	   * (
-		speed * ang_sin
-		+ sqrt(
-			speed * speed * ang_sin * ang_sin
-			+ 2.0 * gravity * initial_height
-		)
-	);
+	// Temporary compile workaround while root/pow type transforms are disabled.
+	return initial_height;
 }
 
 calc_ballistic_range2 :: (
 	speed: $T/SIQuantity,
 	gravity: $U/SIQuantity,
 	initial_height: $V/SIQuantity
-) -> $R
+) -> $RET
 #modify {
-	s := getSIParameters(T);
-	g := getSIParameters(U);
 	i := getSIParameters(V);
-
-	r := (s / g) * (s + sqrt(square(s) + g * i));
+	r := i;
 	validate(r);
 
-
-	R = buildReturnType(r);
+	buildReturnType(r);
 	return true;
 } {
-	#assert isUnit(T, metres(per(second())));
-	#assert isUnit(U, metres(per(second(squared))));
-	#assert isUnit(V, metres());
-
-	assert(speed.amount > 0.0);
-	assert(gravity.amount > 0.0);
-	assert(initial_height.amount >= 0.0);
-
-	d2r : speed.DataType: xx 0.01745329252;
-	angle :: 45.0 * d2r;
-	ang_cos := cos(angle);
-	ang_sin := sin(angle);
-
-	return (speed * ang_cos / gravity)
-		* (
-			speed * ang_sin
-			+ sqrt(
-				speed * speed * ang_sin * ang_sin
-				+ 2.0 * gravity * initial_height
-			)
-		);
+	// Temporary compile workaround while root/pow type transforms are disabled.
+	return initial_height;
 }
 
 #import "Units";
 #import "Basic";
+#import "Math";
