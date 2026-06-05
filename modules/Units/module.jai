@@ -763,6 +763,30 @@ JAI
 
 	return a;
 }
+
+// ====== Addition operator hierarchy ======
+//
+// The operator + is implemented in three tiers to balance performance and convenience:
+//
+// 1. FAST PATH (exact match): operator+(T, T) -> T
+//    - Used when both operands are the exact same type.
+//    - Direct arithmetic with no conversion overhead.
+//    - Preferred over relaxed path when type match exists.
+//
+// 2. GUARDED RELAXED PATH: operator+(T, U, $MUL, $ADD) -> RET
+//    - Handles mixed-ratio unit conversions (e.g., meters + kilometers).
+//    - #modify guard computes conversion constants (MUL, ADD) at compile-time.
+//    - Constants are baked into the specialized operator body.
+//    - Guard returns false (delegating to other overloads) for:
+//      * T == U (prefer faster same-type overload)
+//      * Incompatible dimensions (let compiler error on overload failure)
+//      * Unsupported affine mappings (reject at compile-time with reason)
+//    - Result is always in LHS frame (T) to provide predictable semantics.
+//
+// 3. REJECTION: #modify returns (false, reason_string)
+//    - When operation is invalid, guard emits diagnostic.
+//    - Overload resolution falls through and fails with compiler error.
+
 operator + :: (a: $T/SIQuantity, b: T) -> T {
 	result: T;
 	result.amount = a.amount + b.amount;
@@ -847,6 +871,30 @@ JAI
 
 	return a;
 }
+
+// ====== Subtraction operator hierarchy ======
+//
+// The operator - follows the same three-tier structure as operator +:
+//
+// 1. FAST PATH (exact match): operator-(T, T) -> T
+//    - Used when both operands are the exact same type.
+//    - Direct arithmetic with no conversion overhead.
+//    - Preferred over relaxed path when type match exists.
+//
+// 2. GUARDED RELAXED PATH: operator-(T, U, $MUL, $ADD) -> RET
+//    - Handles mixed-ratio unit conversions (e.g., kilometers - meters).
+//    - #modify guard computes conversion constants (MUL, ADD) at compile-time.
+//    - Constants are baked into the specialized operator body.
+//    - Guard returns false (delegating to other overloads) for:
+//      * T == U (prefer faster same-type overload)
+//      * Incompatible dimensions (let compiler error on overload failure)
+//      * Unsupported affine mappings (reject at compile-time with reason)
+//    - Result is always in LHS frame (T) to provide predictable semantics.
+//
+// 3. REJECTION: #modify returns (false, reason_string)
+//    - When operation is invalid, guard emits diagnostic.
+//    - Overload resolution falls through and fails with compiler error.
+
 operator - :: (a: $T/SIQuantity, b: T) -> T {
 	result: T;
 	result.amount = a.amount - b.amount;
@@ -913,6 +961,26 @@ JAI
 
 	return a;
 }
+
+// ====== Multiplication operator with mixed-ratio normalization ======
+//
+// operator * handles both same-ratio and mixed-ratio multiplication:
+//
+// 1. SAME-RATIO PATH: Direct arithmetic (handled implicitly through metadata)
+//    - When both operands have compatible ratio metadata, no conversion needed.
+//    - Runtime body uses only direct multiplication.
+//
+// 2. MIXED-RATIO PATH: Normalization constant baked at compile-time
+//    - #modify guard detects ratio mismatch on overlapping dimensions.
+//    - Computes RHS_FACTOR to normalize RHS into LHS frame before multiply.
+//    - RHS_FACTOR is baked into specialized operator body.
+//    - Runtime body: result = x * y * RHS_FACTOR (one extra multiply of constant).
+//    - Result is in LHS unit frame to provide predictable semantics.
+//
+// 3. REJECTION: Guard returns false with diagnostic for invalid operations
+//    - Incompatible dimensions or unsupported affine combinations.
+//    - Offset-bearing quantities are rejected (semantically invalid).
+
 operator * :: (x: $T/SIQuantity, y: $U/SIQuantity, $RHS_FACTOR: float64 = 1.0) -> $RET
 #modify {
 	a := getSIParameters(T);
@@ -991,6 +1059,26 @@ JAI
 
 	return a;
 }
+
+// ====== Division operator with mixed-ratio normalization ======
+//
+// operator / handles both same-ratio and mixed-ratio division:
+//
+// 1. SAME-RATIO PATH: Direct arithmetic (handled implicitly through metadata)
+//    - When both operands have compatible ratio metadata, no conversion needed.
+//    - Runtime body uses only direct division.
+//
+// 2. MIXED-RATIO PATH: Normalization constant baked at compile-time
+//    - #modify guard detects ratio mismatch on overlapping dimensions.
+//    - Computes RHS_FACTOR to normalize RHS into LHS frame before divide.
+//    - RHS_FACTOR is baked into specialized operator body.
+//    - Runtime body: result = x / (y * RHS_FACTOR) (one extra multiply of constant).
+//    - Result is in LHS unit frame to provide predictable semantics.
+//
+// 3. REJECTION: Guard returns false with diagnostic for invalid operations
+//    - Incompatible dimensions or unsupported affine combinations.
+//    - Offset-bearing quantities are rejected (semantically invalid).
+
 operator / :: (x: $T/SIQuantity, y: $U/SIQuantity, $RHS_FACTOR: float64 = 1.0) -> $RET
 #modify {
 	a := getSIParameters(T);
