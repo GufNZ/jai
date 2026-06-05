@@ -819,7 +819,7 @@ operator - :: (a: $T/SIQuantity, b: $U/SIQuantity, $MUL: float64 = 1.0, $ADD: fl
 
 operator * :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	modCheck(*a, dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
-	modCheck(*a, ratiosCompatible(a, b), "UnitsError: Incompatible ratios.\n  a: [%]\n  b: [%]", a, b);
+	modCheck(*a, ratiosCompatible(a, b), "UnitsError: Incompatible ratios for multiply.\n  Overlapping active dimensions must currently use the same ratio metadata.\n  Mixed-ratio multiply auto-conversion is not implemented yet.\n  a: [%]\n  b: [%]", a, b);
 	modCheck(*a, !hasAnyOffset(a) && !hasAnyOffset(b), "UnitsError: Multiply with non-zero unit offsets is not supported yet.\n  a: [%]\n  b: [%]", a, b);
 
 
@@ -867,7 +867,7 @@ operator * :: (a: $T/SIQuantity, b: T.DataType) -> T #symmetric {
 
 operator / :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	modCheck(*a, dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
-	modCheck(*a, ratiosCompatible(a, b), "UnitsError: Incompatible ratios.\n  a: [%]\n  b: [%]", a, b);
+	modCheck(*a, ratiosCompatible(a, b), "UnitsError: Incompatible ratios for divide.\n  Overlapping active dimensions must currently use the same ratio metadata.\n  Mixed-ratio divide auto-conversion is not implemented yet.\n  a: [%]\n  b: [%]", a, b);
 	modCheck(*a, !hasAnyOffset(a) && !hasAnyOffset(b), "UnitsError: Divide with non-zero unit offsets is not supported yet.\n  a: [%]\n  b: [%]", a, b);
 
 
