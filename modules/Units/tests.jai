@@ -112,10 +112,45 @@ test_mixed_ratio_derived_mul_div_runtime :: () {
 	assert(d2.amount > 0.999999 && d2.amount < 1.000001);
 }
 
+test_unboxSI_boxSI_roundtrip :: () {
+	// Test unboxSI: extract canonical SI values from different frames
+	m := Meters(float64).{100.0};
+	m_canonical := unboxSI(m);
+	assert(m_canonical > 99.999 && m_canonical < 100.001);
+
+	km := Kilometers(float64).{2.0};
+	km_canonical := unboxSI(km);
+	assert(km_canonical > 1999.999 && km_canonical < 2000.001);
+
+	// Test boxSI: wrap canonical values back into target units
+	m_reconstructed := boxSI(Meters(float64), m_canonical);
+	assert(m_reconstructed.amount > 99.999 && m_reconstructed.amount < 100.001);
+
+	km_reconstructed := boxSI(Kilometers(float64), km_canonical);
+	assert(km_reconstructed.amount > 1.999999 && km_reconstructed.amount < 2.000001);
+
+	// Test round-trip with mixed-ratio result
+	sum := m + km;  // 100 m + 2000 m = 2100 m
+	sum_canonical := unboxSI(sum);
+	assert(sum_canonical > 2099.999 && sum_canonical < 2100.001);
+
+	sum_restored := boxSI(Meters(float64), sum_canonical);
+	assert(sum_restored.amount > 2099.999 && sum_restored.amount < 2100.001);
+
+	// Test with temperature (has offset)
+	c := Celsius(float64).{20.0};  // 20°C = 293.15 K
+	c_canonical := unboxSI(c);
+	assert(c_canonical > 293.149 && c_canonical < 293.151);
+
+	c_reconstructed := boxSI(Celsius(float64), c_canonical);
+	assert(c_reconstructed.amount > 19.999 && c_reconstructed.amount < 20.001);
+}
+
 run_all :: () {
 	test_mixed_ratio_add_sub_runtime();
 	test_mixed_ratio_mul_div_runtime();
 	test_mixed_ratio_derived_mul_div_runtime();
+	test_unboxSI_boxSI_roundtrip();
 }
 
 main :: () {
