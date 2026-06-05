@@ -56,7 +56,7 @@
 		KATALS				:: 1 << 37;
 		ALL_RADIOACTIVITY	:: 0x003C_0000_0000;
 
-		CELSIUS				:: 1 << 38;
+		CELSIUS				:: 1 << 38;		//QUESTION: should all these (and what they generate) have the Degrees_ prefix?
 		FAHRENHEIT			:: 1 << 39;
 		COMMON_TENPERATURES	:: 0x0060_0000_0000;
 		RANKINE				:: 1 << 40;
@@ -236,7 +236,6 @@ Standard SI derived units with special names and definitions in terms of the 7 S
 		kelvin (K)				= base unit
 		degree Celsius (°C)		= K - 273.15
 		degree Fahrenheit (°F)	= 5/9(K - 255.372222)
-		//MAYBE: not sure we need ones quite so specific out of the box.
 		degree Rankine (°R)		= 5/9 K
 		degree Réaumur (°Ré)	= 0.8 K
 		degree Rømer (°Rø)		= 0.525 K + 7.5 °N
@@ -362,7 +361,7 @@ JAI,
 
 #scope_file
 
-mult :: (pp: SIQuantityTypeParams, n: u64, name: string) -> SIQuantityTypeParams {
+mult :: (pp: SIQuantityTypeParams, n: u64, s: float64, name: string) -> SIQuantityTypeParams {
 	p := pp;
 
 	if p.lastSet == {
@@ -371,6 +370,7 @@ JAI,
 		#string JAI
 		case .%;
 			p.%1Num *= n;
+			p.%1Scale *= s;
 JAI
 	),
 	() => #string JAI
@@ -381,7 +381,7 @@ JAI
 	return p;
 }
 
-div :: (pp: SIQuantityTypeParams, n: u64, name: string) -> SIQuantityTypeParams {
+div :: (pp: SIQuantityTypeParams, n: u64, s: float64, name: string) -> SIQuantityTypeParams {
 	p := pp;
 
 	if p.lastSet == {
@@ -390,6 +390,7 @@ JAI,
 		#string JAI
 		case .%;
 			p.%1Denom *= n;
+			p.%1Scale /= s;
 JAI
 	),
 	() => #string JAI
@@ -402,38 +403,49 @@ JAI
 
 JAI,
 	() -> string {
-		big		:: string.["kilo",	"mega",	"giga",	"tera",	"peta",	"exa",	/* Too big for int: "zetta", "yotta"*/];//LATER: we could support the last 2 via .scale after we cap out the integers.
-		small	:: string.["milli",	"micro","nano",	"pico",	"femto","atto",	/* Too big for int: "zepto", "yocto"*/];
+		big		:: string.["kilo",	"mega",	"giga",	"tera",	"peta",	"exa",	"zetta", "yotta"];
+		small	:: string.["milli",	"micro","nano",	"pico",	"femto","atto",	"zepto", "yocto"];
 
-		//bigBinary :: string.["kibi", "mebi", "gibi", "tebi", "pebi", "exbi", /* Too big for int: "zebi", "yobi"*/];
+		//bigBinary :: string.["kibi", "mebi", "gibi", "tebi", "pebi", "exbi", "zebi", "yobi"];
 
-		common :: (n: u64, it: string, proc: string) -> string {
+		common :: (n: u64, s: float64, it: string, proc: string) -> string {
 			return tprint(
 				#string JAI
 % :: (p: SIQuantityTypeParams) -> SIQuantityTypeParams {
-	return %(p, %, "%1");
+	return %(p, %, %, "%1");
 }
 
 JAI,
 				it,
 				proc,
-				n
+				n,
+				s
 			);
 		}
 
 		sb: String_Builder;
 		n: u64 = 1;
+		s := 1.0;
 		for big {
-			n *= 1000;
-			append(*sb, common(n, it, "mult"));
+			if U64_MAX / n < 1000 {
+				s *= 1000;
+			} else {
+				n *= 1000;
+			}
+			append(*sb, common(n, s, it, "mult"));
 		}
 
 		print(*sb, "\n");
 
 		n = 1;
+		s = 1.0;
 		for small {
-			n *= 1000;
-			append(*sb, common(n, it, "div"));
+			if U64_MAX / n < 1000 {
+				s /= 1000;
+			} else {
+				n *= 1000;
+			}
+			append(*sb, common(n, s, it, "div"));
 		}
 
 		return builder_to_string(*sb);
