@@ -16,3 +16,9 @@ The sizes available and the number of each is controled with the SIZES_CONFIG pa
 Everything is dynamically created off this config so there's no waste.
 
 Details: [Bucket Allocator module](modules/Bucket_Allocator/README.md).
+
+## Coming soon: Units
+
+Currently WIP and also stuck behind a compiler bug.
+
+Details: [Units module](modules/Units/README.md).

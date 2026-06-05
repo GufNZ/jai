@@ -556,8 +556,6 @@ JAI,
 
 //TODO: alt ones for different types with the same unit but different ratios, e.g. grams vs kilograms
 //TEST: different types with the same unit but different scales, e.g. kelvin vs farenheit
-//FIXME: SIQuantityTypeParams +- float -> lastSet.offset
-//FIXME: SIQuantityTypeParams */ float -> lastSet.scale
 operator + :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	modCheck(*a, dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
 	modCheck(*a, ratiosEqual(a, b), "UnitsError: Can only add quantities with same ratios.\n  a: [%]\n  b: [%]\n", a, b);
