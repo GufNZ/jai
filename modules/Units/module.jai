@@ -367,7 +367,7 @@ JAI,
 	),
 	() => #string JAI
 
-// ====== Prefix Multipliers and Unit Modifiers (hand-written) ======
+// ====== Prefix Multipliers and Unit Modifiers (generated) ======
 
 #scope_file
 
@@ -484,8 +484,6 @@ JAI
 
 // ====== Unit Constants (generated) ======
 
-#scope_file
-
 JAI,
 	() => fieldsTemplate(
 		#string Jai
@@ -496,7 +494,7 @@ Jai,
 	),
 	() => #string JAI
 
-// ====== Compatibility & Validation Macros (hand-written) ======
+// ====== Compatibility & Validation Macros ======
 
 modCheck :: (ok: bool, errorMessage: string, args: ..Any) -> bool #expand {
 	if !ok {
@@ -510,7 +508,7 @@ modCheck :: (p: *SIQuantityTypeParams, ok: bool, errorMessage: string, args: ..A
 	}
 };
 
-// ====== Unit Compatibility Predicates (hand-written) ======
+// ====== Unit Compatibility Predicates (mostly generated) ======
 
 dataTypesMatch :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
 	return lhs.DataType == rhs.DataType;
@@ -730,11 +728,6 @@ JAI,
 	return r;
 }
 
-isUnit :: (t: Type, p: SIQuantityTypeParams) -> bool #compile_time {
-	a := getSIParameters(t);
-	return isStrictlyIdenticalUnits(a, p);
-}
-
 buildReturnType :: inline (a: SIQuantityTypeParams) #expand {
 JAI,
 	() => fieldsTemplate(
@@ -749,12 +742,15 @@ JAI,
 	() => #string JAI
 }
 
-// ====== Unit Constructor Builders (generated) ======
-
 #scope_export
 
-//TODO: alt ones for different types with the same unit but different ratios, e.g. grams vs kilograms
-//TEST: different types with the same unit but different scales, e.g. kelvin vs farenheit
+isUnit :: (t: Type, p: SIQuantityTypeParams) -> bool #compile_time {
+	a := getSIParameters(t);
+	return isStrictlyIdenticalUnits(a, p);
+}
+
+// ====== Unit Constructor Builders (generated) ======
+
 operator + :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	modCheck(*lhs, dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
 	modCheck(*lhs, ratiosEqual(lhs, rhs), "UnitsError: Can only add quantities with same ratios.\n  a: [%]\n  b: [%]\n", lhs, rhs);
