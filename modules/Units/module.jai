@@ -696,6 +696,29 @@ operator + :: (a: $T/SIQuantity, b: T) -> T {
 	result.amount = a.amount + b.amount;
 	return result;
 }
+operator + :: (a: $T/SIQuantity, b: $U/SIQuantity, $MUL: float64 = 1.0, $ADD: float64 = 0.0) -> $RET
+#modify {
+	// Prefer the existing same-type overload for the minimal runtime path.
+	if T == U return false;
+
+	lhs := getSIParameters(T);
+	rhs := getSIParameters(U);
+
+	modCheck(dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
+
+	conv := computeAddSubConversion(lhs, rhs);
+	modCheck(conv.ok, conv.reason);
+
+	MUL = conv.mul;
+	ADD = conv.add;
+
+	buildReturnType(lhs);
+	return true;
+} {
+	result: RET;
+	result.amount = a.amount + (b.amount * (xx MUL) + (xx ADD));
+	return result;
+}
 #if UNTYPED_ADD_SUBTRACT {
 	operator + :: (a: $T/SIQuantity, b: T.DataType) -> T #symmetric {
 		result: T;
