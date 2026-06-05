@@ -498,27 +498,27 @@ modCheck :: (p: *SIQuantityTypeParams, ok: bool, errorMessage: string, args: ..A
 	}
 };
 
-dataTypesMatch :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
-	return a.DataType == b.DataType;
+dataTypesMatch :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
+	return lhs.DataType == rhs.DataType;
 }
 
-ratiosCompatible :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+ratiosCompatible :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
 	ok := true;
 JAI,
-	() => fieldsTemplate("\tok &&= a.%Num == b.%1Num && a.%1Denom == b.%1Denom || !a.%1Num || !b.%1Num;", "\n"),
+	() => fieldsTemplate("\tok &&= lhs.%Num == rhs.%1Num && lhs.%1Denom == rhs.%1Denom || !lhs.%1Num || !rhs.%1Num;", "\n"),
 	() => #string JAI
 	return ok;
 }
 
-ratiosEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+ratiosEqual :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
 JAI,
-	() => fieldsTemplate("a.%Num == b.%1Num && a.%1Denom == b.%1Denom", "\n\t\t&& ", prefix="return ", suffix=";"),
+	() => fieldsTemplate("lhs.%Num == rhs.%1Num && lhs.%1Denom == rhs.%1Denom", "\n\t\t&& ", prefix="return ", suffix=";"),
 	() => #string JAI
 }
 
-exponentsEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+exponentsEqual :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
 JAI,
-	() => fieldsTemplate("a.%Exp == b.%1Exp", "\n\t\t&& ", prefix="return ", suffix=";"),
+	() => fieldsTemplate("lhs.%Exp == rhs.%1Exp", "\n\t\t&& ", prefix="return ", suffix=";"),
 	() => #string JAI
 }
 
@@ -552,39 +552,39 @@ validate :: (p: SIQuantityTypeParams) #expand {
 	modCheck(!p.validationError, p.validationError);
 }
 
-scalesEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+scalesEqual :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
 JAI,
-	() => fieldsTemplate("a.%Scale == b.%1Scale", "\n\t\t&& ", prefix="return ", suffix=";"),
+	() => fieldsTemplate("lhs.%Scale == rhs.%1Scale", "\n\t\t&& ", prefix="return ", suffix=";"),
 	() => #string JAI
 }
 
-offsetsEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+offsetsEqual :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
 JAI,
-	() => fieldsTemplate("a.%Offset == b.%1Offset", "\n\t\t&& ", prefix="return ", suffix=";"),
+	() => fieldsTemplate("lhs.%Offset == rhs.%1Offset", "\n\t\t&& ", prefix="return ", suffix=";"),
 	() => #string JAI
 }
 
-isDimensionallyEqual :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
-	return dataTypesMatch(a, b) && exponentsEqual(a, b);
+isDimensionallyEqual :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
+	return dataTypesMatch(lhs, rhs) && exponentsEqual(lhs, rhs);
 }
 
-isStrictlyIdenticalUnits :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
-	return isDimensionallyEqual(a, b) && ratiosEqual(a, b) && scalesEqual(a, b) && offsetsEqual(a, b);
+isStrictlyIdenticalUnits :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
+	return isDimensionallyEqual(lhs, rhs) && ratiosEqual(lhs, rhs) && scalesEqual(lhs, rhs) && offsetsEqual(lhs, rhs);
 }
 
-hasValidRatiosForActiveDimensions :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+hasValidRatiosForActiveDimensions :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
 	ok := true;
 JAI,
 	() => fieldsTemplate(
-		"\tok &&= !a.%Exp || (a.%1Num && a.%1Denom && b.%1Num && b.%1Denom);",
+		"\tok &&= !lhs.%Exp || (lhs.%1Num && lhs.%1Denom && rhs.%1Num && rhs.%1Denom);",
 		"\n"
 	),
 	() => #string JAI
 	return ok;
 }
 
-isAddSubConvertible :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
-	return isDimensionallyEqual(a, b) && hasValidRatiosForActiveDimensions(a, b);
+isAddSubConvertible :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
+	return isDimensionallyEqual(lhs, rhs) && hasValidRatiosForActiveDimensions(lhs, rhs);
 }
 
 hasAnyOffset :: inline (p: SIQuantityTypeParams) -> bool {
@@ -737,12 +737,12 @@ JAI,
 
 //TODO: alt ones for different types with the same unit but different ratios, e.g. grams vs kilograms
 //TEST: different types with the same unit but different scales, e.g. kelvin vs farenheit
-operator + :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
-	modCheck(*a, dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
-	modCheck(*a, ratiosEqual(a, b), "UnitsError: Can only add quantities with same ratios.\n  a: [%]\n  b: [%]\n", a, b);
+operator + :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> SIQuantityTypeParams {
+	modCheck(*lhs, dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
+	modCheck(*lhs, ratiosEqual(lhs, rhs), "UnitsError: Can only add quantities with same ratios.\n  a: [%]\n  b: [%]\n", lhs, rhs);
 
 
-	return a;
+	return lhs;
 }
 operator + :: (aa: SIQuantities, b: float64) -> SIQuantityTypeParams #symmetric {
 	a := aa;
@@ -818,19 +818,19 @@ operator + :: (a: $T/SIQuantity, b: $U/SIQuantity, $MUL: float64 = 1.0, $ADD: fl
 	return result;
 }
 #if UNTYPED_ADD_SUBTRACT {
-	operator + :: (a: $T/SIQuantity, b: T.DataType) -> T #symmetric {
+	operator + :: (x: $T/SIQuantity, scaleFactor: T.DataType) -> T #symmetric {
 		result: T;
-		result.amount = a.amount + b;
+		result.amount = x.amount + scaleFactor;
 		return result;
 	}
 }
 
-operator - :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
-	modCheck(*a, dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
-	modCheck(*a, ratiosEqual(a, b), "UnitsError: Can only subtract quantities with same ratios.\n  a: [%]\n  b: [%]\n", a, b);
+operator - :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> SIQuantityTypeParams {
+	modCheck(*lhs, dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
+	modCheck(*lhs, ratiosEqual(lhs, rhs), "UnitsError: Can only subtract quantities with same ratios.\n  a: [%]\n  b: [%]\n", lhs, rhs);
 
 
-	return a;
+	return lhs;
 }
 operator - :: (aa: SIQuantities, b: float64) -> SIQuantityTypeParams {
 	a := aa;
@@ -926,24 +926,24 @@ operator - :: (a: $T/SIQuantity, b: $U/SIQuantity, $MUL: float64 = 1.0, $ADD: fl
 	return result;
 }
 #if UNTYPED_ADD_SUBTRACT {
-	operator - :: (a: $T/SIQuantity, b: T.DataType) -> T {
+	operator - :: (x: $T/SIQuantity, scaleFactor: T.DataType) -> T {
 		result: T;
-		result.amount = a.amount - b;
+		result.amount = x.amount - scaleFactor;
 		return result;
 	}
 }
 
-operator * :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
-	modCheck(*a, dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
-	modCheck(*a, ratiosCompatible(a, b), "UnitsError: Incompatible ratios for multiply.\n  Overlapping active dimensions must currently use the same ratio metadata.\n  Mixed-ratio multiply auto-conversion is not implemented yet.\n  a: [%]\n  b: [%]", a, b);
-	modCheck(*a, !hasAnyOffset(a) && !hasAnyOffset(b), "UnitsError: Multiply with non-zero unit offsets is not supported yet.\n  a: [%]\n  b: [%]", a, b);
+operator * :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> SIQuantityTypeParams {
+	modCheck(*lhs, dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
+	modCheck(*lhs, ratiosCompatible(lhs, rhs), "UnitsError: Incompatible ratios for multiply.\n  Overlapping active dimensions must currently use the same ratio metadata.\n  Mixed-ratio multiply auto-conversion is not implemented yet.\n  a: [%]\n  b: [%]", lhs, rhs);
+	modCheck(*lhs, !hasAnyOffset(lhs) && !hasAnyOffset(rhs), "UnitsError: Multiply with non-zero unit offsets is not supported yet.\n  a: [%]\n  b: [%]", lhs, rhs);
 
 
-	addExponents(*a, b);
+	addExponents(*lhs, rhs);
 
-	return a;
+	return lhs;
 }
-operator * :: (aa: SIQuantities, b: float64) -> SIQuantityTypeParams #symmetric {
+operator * :: (aa: SIQuantityTypeParams, b: float64) -> SIQuantityTypeParams #symmetric {
 	a := aa;
 
 	if a.lastSet == {
@@ -983,46 +983,46 @@ JAI
 
 operator * :: (x: $T/SIQuantity, y: $U/SIQuantity, $RHS_FACTOR: float64 = 1.0) -> $RET
 #modify {
-	a := getSIParameters(T);
-	b := getSIParameters(U);
+	lhs := getSIParameters(T);
+	rhs := getSIParameters(U);
 
-	modCheck(dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
+	modCheck(dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
 
 
-	conv := computeMulDivOverlapConversion(a, b);
+	conv := computeMulDivOverlapConversion(lhs, rhs);
 	modCheck(conv.ok, conv.reason);
 
 
 	RHS_FACTOR = conv.rhsAmountFactor;
 
-	a *= conv.rhsAdjusted;
-	validate(a);
+	lhs *= conv.rhsAdjusted;
+	validate(lhs);
 
 
-	buildReturnType(a);
+	buildReturnType(lhs);
 	return true;
 } {
 	result: RET;
 	result.amount = x.amount * y.amount * (xx RHS_FACTOR);
 	return result;
 }
-operator * :: (a: $T/SIQuantity, b: T.DataType) -> T #symmetric {
+operator * :: (x: $T/SIQuantity, scaleFactor: T.DataType) -> T #symmetric {
 	result: T;
-	result.amount = a.amount * b;
+	result.amount = x.amount * scaleFactor;
 	return result;
 }
 
-operator / :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
-	modCheck(*a, dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
-	modCheck(*a, ratiosCompatible(a, b), "UnitsError: Incompatible ratios for divide.\n  Overlapping active dimensions must currently use the same ratio metadata.\n  Mixed-ratio divide auto-conversion is not implemented yet.\n  a: [%]\n  b: [%]", a, b);
-	modCheck(*a, !hasAnyOffset(a) && !hasAnyOffset(b), "UnitsError: Divide with non-zero unit offsets is not supported yet.\n  a: [%]\n  b: [%]", a, b);
+operator / :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> SIQuantityTypeParams {
+	modCheck(*lhs, dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
+	modCheck(*lhs, ratiosCompatible(lhs, rhs), "UnitsError: Incompatible ratios for divide.\n  Overlapping active dimensions must currently use the same ratio metadata.\n  Mixed-ratio divide auto-conversion is not implemented yet.\n  a: [%]\n  b: [%]", lhs, rhs);
+	modCheck(*lhs, !hasAnyOffset(lhs) && !hasAnyOffset(rhs), "UnitsError: Divide with non-zero unit offsets is not supported yet.\n  a: [%]\n  b: [%]", lhs, rhs);
 
 
-	subtractExponents(*a, b);
+	subtractExponents(*lhs, rhs);
 
-	return a;
+	return lhs;
 }
-operator / :: (aa: SIQuantities, b: float64) -> SIQuantityTypeParams {
+operator / :: (aa: SIQuantityTypeParams, b: float64) -> SIQuantityTypeParams {
 	a := aa;
 
 	if a.lastSet == {
@@ -1040,7 +1040,7 @@ JAI
 
 	return a;
 }
-operator / :: (b: float64, aa: SIQuantities) -> SIQuantityTypeParams {
+operator / :: (b: float64, aa: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	a := aa;
 
 	if a.lastSet == {
@@ -1081,32 +1081,32 @@ JAI
 
 operator / :: (x: $T/SIQuantity, y: $U/SIQuantity, $RHS_FACTOR: float64 = 1.0) -> $RET
 #modify {
-	a := getSIParameters(T);
-	b := getSIParameters(U);
+	lhs := getSIParameters(T);
+	rhs := getSIParameters(U);
 
-	modCheck(dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
+	modCheck(dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
 
 
-	conv := computeMulDivOverlapConversion(a, b);
+	conv := computeMulDivOverlapConversion(lhs, rhs);
 	modCheck(conv.ok, conv.reason);
 
 
 	RHS_FACTOR = conv.rhsAmountFactor;
 
-	a /= conv.rhsAdjusted;
-	validate(a);
+	lhs /= conv.rhsAdjusted;
+	validate(lhs);
 
 
-	buildReturnType(a);
+	buildReturnType(lhs);
 	return true;
 } {
 	result: RET;
 	result.amount = x.amount / (y.amount * (xx RHS_FACTOR));
 	return result;
 }
-operator / :: (a: $T/SIQuantity, b: T.DataType) -> T {
+operator / :: (x: $T/SIQuantity, scaleFactor: T.DataType) -> T {
 	result: T;
-	result.amount = a.amount / b;
+	result.amount = x.amount / scaleFactor;
 	return result;
 }
 
