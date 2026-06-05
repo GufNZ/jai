@@ -76,10 +76,9 @@ calc_ballistic_range2 :: (
 	R = buildReturnType(r);
 	return true;
 } {
-	// Make sure units are correct:
-	#assert T.MetreExp == 1 && T.KilogramExp == 0 && T.SecondExp == -1;
-	#assert U.MetreExp == 1 && U.KilogramExp == 0 && U.SecondExp == -2;
-	#assert V.MetreExp == 1 && V.KilogramExp == 0 && V.SecondExp == 0;
+	#assert isUnit(T, metres(per(second())));
+	#assert isUnit(U, metres(per(second(squared))));
+	#assert isUnit(V, metres());
 
 	assert(speed.amount > 0.0);
 	assert(gravity.amount > 0.0);

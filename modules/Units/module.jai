@@ -552,6 +552,11 @@ validate :: (p: SIQuantityTypeParams) #expand {
 	modCheck(!p.validationError, p.validationError);
 }
 
+isUnit :: (t: Type, p: SIQuantityTypeParams) -> bool #compile_time {
+	a := getSIParameters(t);
+	return ratiosEqual(a, p) && exponentsEqual(a, p);
+}
+
 buildReturnType :: inline (a: SIQuantityTypeParams) #expand {
 JAI,
 	() => fieldsTemplate(
