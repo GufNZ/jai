@@ -572,10 +572,19 @@ isStrictlyIdenticalUnits :: inline (a: SIQuantityTypeParams, b: SIQuantityTypePa
 	return isDimensionallyEqual(a, b) && ratiosEqual(a, b) && scalesEqual(a, b) && offsetsEqual(a, b);
 }
 
+hasValidRatiosForActiveDimensions :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
+	ok := true;
+JAI,
+	() => fieldsTemplate(
+		"\tok &&= !a.%Exp || (a.%1Num && a.%1Denom && b.%1Num && b.%1Denom);",
+		"\n"
+	),
+	() => #string JAI
+	return ok;
+}
+
 isAddSubConvertible :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> bool {
-	// Step 1 predicate: dimensional compatibility only. We will tighten this as
-	// affine conversion handling is added.
-	return isDimensionallyEqual(a, b);
+	return isDimensionallyEqual(a, b) && hasValidRatiosForActiveDimensions(a, b);
 }
 
 hasAnyOffset :: inline (p: SIQuantityTypeParams) -> bool {
@@ -614,7 +623,7 @@ computeAddSubConversion :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams
 	r: AddSubConversion;
 
 	if !isAddSubConvertible(lhs, rhs) {
-		r.reason = "UnitsError: Add/subtract requires dimensionally-compatible quantities.";
+		r.reason = "UnitsError: Add/subtract requires compatible dimensions and valid unit ratios.";
 		return r;
 	}
 
