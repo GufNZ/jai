@@ -593,6 +593,17 @@ JAI,
 	() => #string JAI
 }
 
+isSIQuantityType :: (T: Type) -> bool {
+	info := type_info(T);
+
+	if info.type != .STRUCT  return false;
+	if info.polymorph_source_struct && info.polymorph_source_struct.name == "SIQuantity"  return true;
+	if info.name == "SIQuantity"  return true;	// Probably ok?
+
+
+	return false;
+}
+
 ipow :: (base: float64, exponent: int) -> float64 {
 	if exponent == 0  return 1.0;
 
@@ -1101,6 +1112,19 @@ sqrt :: #bake_arguments (#procedure_of_call root(metres(), ExpHolder(2).{}))(e=E
 squareRoot :: sqrt;
 cubeRoot :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, ExpHolder(3).{}))(e=ExpHolder(3).{});
 cubeRoot :: #bake_arguments (#procedure_of_call root(metres(), ExpHolder(3).{}))(e=ExpHolder(3).{});
+
+unboxSI :: (x: $T/SIQuantity) -> T.DataType {
+	return x.amount;
+}
+
+boxSI :: (target: $T/Type, value: T.DataType) -> T
+#modify {
+	return isSIQuantityType(T), tprint("Type % is not a SIQuantity type", T);
+} {
+	result: T;
+	result.amount = value;
+	return result;
+}
 
 //TEST: can we handle dimensionless units?
 #if WANTED_UNITS & .RADIANS {
