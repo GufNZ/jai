@@ -594,7 +594,8 @@ JAI,
 }
 
 ipow :: (base: float64, exponent: int) -> float64 {
-	if exponent == 0 return 1.0;
+	if exponent == 0  return 1.0;
+
 
 	e := exponent;
 	b := base;
@@ -619,6 +620,13 @@ AddSubConversion :: struct {
 	reason: string = "";
 }
 
+MulDivOverlapConversion :: struct {
+	ok: bool = false;
+	rhsAdjusted: SIQuantityTypeParams;
+	rhsAmountFactor: float64 = 1.0;
+	reason: string = "";
+}
+
 computeAddSubConversion :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> AddSubConversion #compile_time {
 	r: AddSubConversion;
 
@@ -627,10 +635,12 @@ computeAddSubConversion :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams
 		return r;
 	}
 
+
 	if hasAnyOffset(lhs) || hasAnyOffset(rhs) {
 		r.reason = "UnitsError: Add/subtract conversion with non-zero offsets is not implemented yet.";
 		return r;
 	}
+
 
 	m := 1.0;
 JAI,
@@ -649,6 +659,47 @@ JAI,
 	r.ok = true;
 	r.mul = m;
 	r.add = 0.0;
+	return r;
+}
+
+computeMulDivOverlapConversion :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> MulDivOverlapConversion #compile_time {
+	r: MulDivOverlapConversion;
+	r.rhsAdjusted = rhs;
+
+	if hasAnyOffset(lhs) || hasAnyOffset(rhs) {
+		r.reason = "UnitsError: Multiply/divide with non-zero unit offsets is not supported yet.";
+		return r;
+	}
+
+
+	f := 1.0;
+JAI,
+	() => fieldsTemplate(
+		#string JAI
+	if lhs.%1Exp && rhs.%1Exp {
+		if !lhs.%1Num || !lhs.%1Denom || !rhs.%1Num || !rhs.%1Denom {
+			r.reason = "UnitsError: Invalid ratio metadata on overlapping active dimensions for multiply/divide conversion.";
+			return r;
+		}
+
+
+		lhsRatio := lhs.%1Num.(float64) / lhs.%1Denom;
+		rhsRatio := rhs.%1Num.(float64) / rhs.%1Denom;
+		if lhsRatio != rhsRatio {
+			f *= ipow(rhsRatio / lhsRatio, rhs.%1Exp);
+			r.rhsAdjusted.%1Num = lhs.%1Num;
+			r.rhsAdjusted.%1Denom = lhs.%1Denom;
+			r.rhsAdjusted.%1Scale = lhs.%1Scale;
+			r.rhsAdjusted.%1Offset = lhs.%1Offset;
+		}
+	}
+JAI,
+		"\n"
+	),
+	() => #string JAI
+
+	r.ok = true;
+	r.rhsAmountFactor = f;
 	return r;
 }
 
@@ -679,6 +730,7 @@ operator + :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTy
 	modCheck(*a, dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
 	modCheck(*a, ratiosEqual(a, b), "UnitsError: Can only add quantities with same ratios.\n  a: [%]\n  b: [%]\n", a, b);
 
+
 	return a;
 }
 operator + :: (aa: SIQuantities, b: float64) -> SIQuantityTypeParams #symmetric {
@@ -708,15 +760,17 @@ operator + :: (a: $T/SIQuantity, b: T) -> T {
 operator + :: (a: $T/SIQuantity, b: $U/SIQuantity, $MUL: float64 = 1.0, $ADD: float64 = 0.0) -> $RET
 #modify {
 	// Prefer the existing same-type overload for the minimal runtime path.
-	if T == U return false;
+	if T == U  return false, "Prefer the same-type `+` overload.";
 
 	lhs := getSIParameters(T);
 	rhs := getSIParameters(U);
 
 	modCheck(dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
 
+
 	conv := computeAddSubConversion(lhs, rhs);
 	modCheck(conv.ok, conv.reason);
+
 
 	MUL = conv.mul;
 	ADD = conv.add;
@@ -739,6 +793,7 @@ operator + :: (a: $T/SIQuantity, b: $U/SIQuantity, $MUL: float64 = 1.0, $ADD: fl
 operator - :: (a: SIQuantityTypeParams, b: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	modCheck(*a, dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
 	modCheck(*a, ratiosEqual(a, b), "UnitsError: Can only subtract quantities with same ratios.\n  a: [%]\n  b: [%]\n", a, b);
+
 
 	return a;
 }
@@ -789,15 +844,17 @@ operator - :: (a: $T/SIQuantity, b: T) -> T {
 operator - :: (a: $T/SIQuantity, b: $U/SIQuantity, $MUL: float64 = 1.0, $ADD: float64 = 0.0) -> $RET
 #modify {
 	// Prefer the existing same-type overload for the minimal runtime path.
-	if T == U return false;
+	if T == U  return false, "Prefer the same-type `-` overload.";
 
 	lhs := getSIParameters(T);
 	rhs := getSIParameters(U);
 
 	modCheck(dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
 
+
 	conv := computeAddSubConversion(lhs, rhs);
 	modCheck(conv.ok, conv.reason);
+
 
 	MUL = conv.mul;
 	ADD = conv.add;
@@ -845,10 +902,21 @@ JAI
 
 	return a;
 }
-operator * :: (x: $T/SIQuantity, y: $U/SIQuantity) -> $RET
+operator * :: (x: $T/SIQuantity, y: $U/SIQuantity, $RHS_FACTOR: float64 = 1.0) -> $RET
 #modify {
 	a := getSIParameters(T);
-	a *= getSIParameters(U);
+	b := getSIParameters(U);
+
+	modCheck(dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
+
+
+	conv := computeMulDivOverlapConversion(a, b);
+	modCheck(conv.ok, conv.reason);
+
+
+	RHS_FACTOR = conv.rhsAmountFactor;
+
+	a *= conv.rhsAdjusted;
 	validate(a);
 
 
@@ -856,7 +924,7 @@ operator * :: (x: $T/SIQuantity, y: $U/SIQuantity) -> $RET
 	return true;
 } {
 	result: RET;
-	result.amount = x.amount * y.amount;
+	result.amount = x.amount * y.amount * (xx RHS_FACTOR);
 	return result;
 }
 operator * :: (a: $T/SIQuantity, b: T.DataType) -> T #symmetric {
@@ -912,10 +980,21 @@ JAI
 
 	return a;
 }
-operator / :: (x: $T/SIQuantity, y: $U/SIQuantity) -> $RET
+operator / :: (x: $T/SIQuantity, y: $U/SIQuantity, $RHS_FACTOR: float64 = 1.0) -> $RET
 #modify {
 	a := getSIParameters(T);
-	a /= getSIParameters(U);
+	b := getSIParameters(U);
+
+	modCheck(dataTypesMatch(a, b), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", a, b);
+
+
+	conv := computeMulDivOverlapConversion(a, b);
+	modCheck(conv.ok, conv.reason);
+
+
+	RHS_FACTOR = conv.rhsAmountFactor;
+
+	a /= conv.rhsAdjusted;
 	validate(a);
 
 
@@ -923,7 +1002,7 @@ operator / :: (x: $T/SIQuantity, y: $U/SIQuantity) -> $RET
 	return true;
 } {
 	result: RET;
-	result.amount = x.amount / y.amount;
+	result.amount = x.amount / (y.amount * (xx RHS_FACTOR));
 	return result;
 }
 operator / :: (a: $T/SIQuantity, b: T.DataType) -> T {
