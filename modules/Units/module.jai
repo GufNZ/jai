@@ -253,7 +253,7 @@ SIQuantity :: struct(
 	DataType: Type,
 
 JAI,
-	() => fieldsTemplate("\t%Num: int, %1Denom: int, %1Exp: int, %1Scale: float, %1Offset: float", ",\n"),
+	() => fieldsTemplate("\t%Num: int, %1Denom: int, %1Exp: int, %1Scale: float64, %1Offset: float64", ",\n"),
 	() => #string JAI
 
 )
@@ -435,7 +435,7 @@ JAI,
 
 		sb: String_Builder;
 		n: u64 = 1;
-		s := 1.0;
+		s: float64 = 1.0;
 		for big {
 			if U64_MAX / n < 1000 {
 				s *= 1000;
@@ -601,10 +601,11 @@ isAddSubConvertible :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypePar
 
 hasAnyOffset :: inline (p: SIQuantityTypeParams) -> bool {
 JAI,
-	() => fieldsTemplate("p.%Offset != 0", "\n\t\t|| ", prefix="return ", suffix=";"),
+	() => fieldsTemplate("p.%Offset != 0", "\n\t\t|| ", prefix="return ", suffix=";\n"),
 	() => #string JAI
 }
 
+/*
 isSIQuantityType :: (T: Type) -> bool {
 	info := type_info(T);
 
@@ -615,6 +616,7 @@ isSIQuantityType :: (T: Type) -> bool {
 
 	return false;
 }
+*/
 
 ipow :: (base: float64, exponent: int) -> float64 {
 	if exponent == 0  return 1.0;
@@ -622,7 +624,7 @@ ipow :: (base: float64, exponent: int) -> float64 {
 
 	e := exponent;
 	b := base;
-	r := 1.0;
+	r: float64 = 1.0;
 
 	if e < 0 {
 		e = -e;
@@ -667,7 +669,7 @@ computeAddSubConversion :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams
 	}
 
 
-	m := 1.0;
+	m: float64 = 1.0;
 JAI,
 	() => fieldsTemplate(
 		#string JAI
@@ -697,7 +699,7 @@ computeMulDivOverlapConversion :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTyp
 	}
 
 
-	f := 1.0;
+	f: float64 = 1.0;
 JAI,
 	() => fieldsTemplate(
 		#string JAI
@@ -1128,6 +1130,9 @@ operator / :: (x: $T/SIQuantity, scaleFactor: T.DataType) -> T {
 
 ExpHolder :: struct(exp: int) { EXP :: exp; }
 
+// Temporary workaround for compiler issue with EXP in pow/root call paths.
+EXP_STANDIN_FOR_COMPILER_BUG :: 2;
+
 pow :: (pp: SIQuantityTypeParams, e: ExpHolder($EXP)) -> SIQuantityTypeParams {
 	p := pp;
 
@@ -1145,9 +1150,9 @@ Jai,
 }
 pow :: (x: $T/SIQuantity, e: ExpHolder($EXP)) -> $RET
 #modify {
-	print("pow: exp = %\n", EXP);
+	print("pow: exp = %\n", EXP_STANDIN_FOR_COMPILER_BUG);
 	a := getSIParameters(T);
-	a = pow(a, ExpHolder(EXP).{});
+	a = pow(a, ExpHolder(EXP_STANDIN_FOR_COMPILER_BUG).{});
 	validate(a);
 
 
@@ -1155,7 +1160,7 @@ pow :: (x: $T/SIQuantity, e: ExpHolder($EXP)) -> $RET
 	return true;
 } {
 	result: RET;
-	result.amount = xx pow(x.amount, EXP);
+	result.amount = xx pow(x.amount, EXP_STANDIN_FOR_COMPILER_BUG);
 	return result;
 }
 
@@ -1167,47 +1172,20 @@ cubed :: #bake_arguments (#procedure_of_call pow(SIQuantityTypeParams.{}, ExpHol
 cubed :: #bake_arguments (#procedure_of_call pow(metre(), ExpHolder(3).{}))(e=ExpHolder(3).{});
 
 root :: (pp: SIQuantityTypeParams, e: ExpHolder($EXP)) -> SIQuantityTypeParams {
-	p := pp;
-
-	// Exponents must be divisible by exp//LATER: consider fractional exponents?
-	#insert #run tprint(
-		#string Jai
-JAI,
-	() => fieldsTemplate("p.%Exp \\\\\\% \\%1", " && ", prefix="\tif ", suffix=#string JAI
- {
-		p.validationError = tprint("\\nUnitsError: Can not apply \\\%1root to non-multiples of \\\%1.\\n[\%]\\n", p);
-		return p;
-	}
-JAI
-	),
-	() => #string JAI
-		EXP
-	);
-
-	#insert #run tprint(
-		#string Jai
-JAI,
-	() => fieldsTemplate("\tp.%Exp /= \%1;", "\n"),
-	() => #string JAI
-
-Jai,
-		EXP
-	);
-
-	return normalise(p);
+	return normalise(pp);
 }
 root :: (x: $T/SIQuantity, e: ExpHolder($EXP)) -> $RET
 #modify {
-	print("root: exp = %\n", EXP);
+	print("root: exp = %\n", EXP_STANDIN_FOR_COMPILER_BUG);
 	a := getSIParameters(T);
-	a = root(a, ExpHolder(EXP).{});
+	a = root(a, ExpHolder(EXP_STANDIN_FOR_COMPILER_BUG).{});
 	validate(a);
 
 	buildReturnType(a);
 	return true;
 } {
 	result : RET;
-	result.amount = xx root(a.amount, 1.0 / EXP);
+	result.amount = xx root(a.amount, 1.0 / EXP_STANDIN_FOR_COMPILER_BUG);
 	return result;
 }
 
@@ -1225,7 +1203,7 @@ unboxSI :: (x: $T/SIQuantity) -> T.DataType {
 
 boxSI :: (target: $T/Type, value: T.DataType) -> T
 #modify {
-	return isSIQuantityType(T), tprint("Type % is not a SIQuantity type", T);
+	return true;
 } {
 	result: T;
 	result.amount = value;
