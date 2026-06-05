@@ -578,6 +578,71 @@ isAddSubConvertible :: inline (a: SIQuantityTypeParams, b: SIQuantityTypeParams)
 	return isDimensionallyEqual(a, b);
 }
 
+hasAnyOffset :: inline (p: SIQuantityTypeParams) -> bool {
+JAI,
+	() => fieldsTemplate("p.%Offset != 0", "\n\t\t|| ", prefix="return ", suffix=";"),
+	() => #string JAI
+}
+
+ipow :: (base: float64, exponent: int) -> float64 {
+	if exponent == 0 return 1.0;
+
+	e := exponent;
+	b := base;
+	r := 1.0;
+
+	if e < 0 {
+		e = -e;
+		b = 1.0 / b;
+	}
+
+	for 1..e {
+		r *= b;
+	}
+
+	return r;
+}
+
+AddSubConversion :: struct {
+	ok: bool = false;
+	mul: float64 = 1.0;
+	add: float64 = 0.0;
+	reason: string = "";
+}
+
+computeAddSubConversion :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> AddSubConversion #compile_time {
+	r: AddSubConversion;
+
+	if !isAddSubConvertible(lhs, rhs) {
+		r.reason = "UnitsError: Add/subtract requires dimensionally-compatible quantities.";
+		return r;
+	}
+
+	if hasAnyOffset(lhs) || hasAnyOffset(rhs) {
+		r.reason = "UnitsError: Add/subtract conversion with non-zero offsets is not implemented yet.";
+		return r;
+	}
+
+	m := 1.0;
+JAI,
+	() => fieldsTemplate(
+		#string JAI
+	if lhs.%1Exp {
+		lhsRatio := lhs.%1Num.(float64) / lhs.%1Denom;
+		rhsRatio := rhs.%1Num.(float64) / rhs.%1Denom;
+		m *= ipow(rhsRatio / lhsRatio, lhs.%1Exp);
+	}
+JAI,
+		"\n"
+	),
+	() => #string JAI
+
+	r.ok = true;
+	r.mul = m;
+	r.add = 0.0;
+	return r;
+}
+
 isUnit :: (t: Type, p: SIQuantityTypeParams) -> bool #compile_time {
 	a := getSIParameters(t);
 	return isStrictlyIdenticalUnits(a, p);
