@@ -17,6 +17,10 @@ SumMetersType :: type_of(Meters(float64).{1} + Kilometers(float64).{1});
 SumKilometersType :: type_of(Kilometers(float64).{1} + Meters(float64).{1});
 SubMetersType :: type_of(Meters(float64).{1} - Kilometers(float64).{1});
 SubKilometersType :: type_of(Kilometers(float64).{1} - Meters(float64).{1});
+MulMetersType :: type_of(Meters(float64).{2} * Kilometers(float64).{3});
+MulKilometersType :: type_of(Kilometers(float64).{3} * Meters(float64).{2});
+DivMetersType :: type_of(Meters(float64).{2000} / Kilometers(float64).{2});
+DivKilometersType :: type_of(Kilometers(float64).{2} / Meters(float64).{2000});
 
 // Mixed-ratio + and - should keep the lhs unit frame.
 #assert SumMetersType.MetreExp == 1 && SumMetersType.MetreNum == 1 && SumMetersType.MetreDenom == 1;
@@ -24,6 +28,12 @@ SubKilometersType :: type_of(Kilometers(float64).{1} - Meters(float64).{1});
 
 #assert SumKilometersType.MetreExp == 1 && SumKilometersType.MetreNum == 1000 && SumKilometersType.MetreDenom == 1;
 #assert SubKilometersType.MetreExp == 1 && SubKilometersType.MetreNum == 1000 && SubKilometersType.MetreDenom == 1;
+
+// Mixed-ratio * and / should preserve lhs ratio-frame for overlapping dimensions.
+#assert MulMetersType.MetreExp == 2 && MulMetersType.MetreNum == 1 && MulMetersType.MetreDenom == 1;
+#assert MulKilometersType.MetreExp == 2 && MulKilometersType.MetreNum == 1000 && MulKilometersType.MetreDenom == 1;
+#assert DivMetersType.MetreExp == 0 && DivMetersType.MetreNum == 0 && DivMetersType.MetreDenom == 0;
+#assert DivKilometersType.MetreExp == 0 && DivKilometersType.MetreNum == 0 && DivKilometersType.MetreDenom == 0;
 
 // Offset metadata sanity checks for the conservative multiply/divide policy.
 #assert Kelvin(float64).KelvinOffset == 0;
@@ -53,8 +63,26 @@ test_mixed_ratio_add_sub_runtime :: () {
 	assert(d2.amount > 1.899999 && d2.amount < 1.900001);
 }
 
+test_mixed_ratio_mul_div_runtime :: () {
+	m := Meters(float64).{2.0};
+	km := Kilometers(float64).{3.0};
+
+	p1 := m * km;
+	assert(p1.amount > 5999.999 && p1.amount < 6000.001);
+
+	p2 := km * m;
+	assert(p2.amount > 0.005999 && p2.amount < 0.006001);
+
+	d1 := Meters(float64).{2000.0} / Kilometers(float64).{2.0};
+	assert(d1.amount > 0.999999 && d1.amount < 1.000001);
+
+	d2 := Kilometers(float64).{2.0} / Meters(float64).{2000.0};
+	assert(d2.amount > 0.999999 && d2.amount < 1.000001);
+}
+
 run_all :: () {
 	test_mixed_ratio_add_sub_runtime();
+	test_mixed_ratio_mul_div_runtime();
 }
 
 main :: () {
