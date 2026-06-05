@@ -343,6 +343,8 @@ JAI,
 	p.%1Num = 1;
 	p.%1Denom = 1;
 	p.%1Exp = 1;
+	p.%1Scale = 1.0;
+	//p.%1Offset = 0.0; -- we get this for free.
 
 	p.lastSet = .%1;
 
@@ -840,7 +842,7 @@ JAI
 	#insert #run tprint(
 		#string Jai
 JAI,
-	() => fieldsTemplate("\tp.%Exp *= \%1;", "\n"),
+	() => fieldsTemplate("\tp.%Exp /= \%1;", "\n"),
 	() => #string JAI
 
 Jai,
