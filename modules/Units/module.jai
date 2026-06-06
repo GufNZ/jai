@@ -100,25 +100,14 @@ gcd :: (a: int, b: int) -> int {
 	return a;
 }
 
-#scope_file
-
-lowerInitial :: (s: string) -> string {
-	if s.count == 0 {
-		return s;
-	}
-
-	t := copy_string(s,, temp);
-	t[0] |= 32 .(u8);
-	return t;
-}
-
+//NOTE: this needs to be exported as SI() expands to code that calls it.
 fieldsTemplate :: (template: string, joiner := "", alt: (name: string) -> string = null, prefix := "", suffix := "", loc := #caller_location, halt := false) -> string {
 	sb: String_Builder;
 
 	if halt  debug_break();
 
 	if prefix {
-		print(*sb, prefix);
+		append(*sb, prefix);
 	}
 
 	for enum_names(SIUnit) {
@@ -127,7 +116,7 @@ fieldsTemplate :: (template: string, joiner := "", alt: (name: string) -> string
 
 
 		if it_index > 1 {
-			print(*sb, joiner);
+			append(*sb, joiner);
 		}
 
 		if alt {
@@ -138,10 +127,22 @@ fieldsTemplate :: (template: string, joiner := "", alt: (name: string) -> string
 	}
 
 	if suffix {
-		print(*sb, suffix, loc=loc);
+		append(*sb, suffix);
 	}
 
 	return builder_to_string(*sb);
+}
+
+#scope_file
+
+lowerInitial :: (s: string) -> string {
+	if s.count == 0 {
+		return s;
+	}
+
+	t := copy_string(s,, temp);
+	t[0] |= 32 .(u8);
+	return t;
 }
 
 join :: (things: ..() -> string) -> string {
@@ -261,13 +262,19 @@ JAI,
 	amount : DataType;
 }
 
+#scope_file
+
+JAI,
+	() => fieldsTemplate("0,0,0,0,0", ",", prefix="_Dummy_SI_Quantity :: SIQuantity(int,", suffix=").{0};\n"),
+	() => #string JAI
+
+#scope_export
+
 SIQuantityTypeParams :: struct {
 	#insert #run,stallable -> string {
 		sb: String_Builder;
 
-JAI,
-	() => fieldsTemplate("0,0,0,0,0", ",", prefix="\t\tti := type_info(SIQuantity(int,", suffix="));\n"),
-	() => #string JAI
+		ti := type_info(type_of(_Dummy_SI_Quantity));
 		for ti.specified_parameters {
 			print(*sb, "\t%: %;\t// @ %\n", it.name, get_type(it.type), it.offset_into_constant_storage);
 		}
@@ -303,19 +310,26 @@ getSIParameters :: (t: Type) -> SIQuantityTypeParams {
 
 SI :: (parameters: SIQuantityTypeParams) -> string #expand #compile_time {
 	sb: String_Builder;
-	print(*sb, "#bake_arguments SIQuantity(\n");
-	print(*sb, "\tMetreNum=%, MetreDenom=%, MetreExp=%, MetreScale=%, MetreOffset=%,\n", parameters.MetreNum, parameters.MetreDenom, parameters.MetreExp, parameters.MetreScale, parameters.MetreOffset);
-	print(*sb, "\tKilogramNum=%, KilogramDenom=%, KilogramExp=%, KilogramScale=%, KilogramOffset=%,\n", parameters.KilogramNum, parameters.KilogramDenom, parameters.KilogramExp, parameters.KilogramScale, parameters.KilogramOffset);
-	print(*sb, "\tSecondNum=%, SecondDenom=%, SecondExp=%, SecondScale=%, SecondOffset=%,\n", parameters.SecondNum, parameters.SecondDenom, parameters.SecondExp, parameters.SecondScale, parameters.SecondOffset);
-	print(*sb, "\tAmpereNum=%, AmpereDenom=%, AmpereExp=%, AmpereScale=%, AmpereOffset=%,\n", parameters.AmpereNum, parameters.AmpereDenom, parameters.AmpereExp, parameters.AmpereScale, parameters.AmpereOffset);
-	print(*sb, "\tKelvinNum=%, KelvinDenom=%, KelvinExp=%, KelvinScale=%, KelvinOffset=%,\n", parameters.KelvinNum, parameters.KelvinDenom, parameters.KelvinExp, parameters.KelvinScale, parameters.KelvinOffset);
-	print(*sb, "\tMoleNum=%, MoleDenom=%, MoleExp=%, MoleScale=%, MoleOffset=%,\n", parameters.MoleNum, parameters.MoleDenom, parameters.MoleExp, parameters.MoleScale, parameters.MoleOffset);
-	print(*sb, "\tCandelaNum=%, CandelaDenom=%, CandelaExp=%, CandelaScale=%, CandelaOffset=%\n", parameters.CandelaNum, parameters.CandelaDenom, parameters.CandelaExp, parameters.CandelaScale, parameters.CandelaOffset);
-	print(*sb, ");\n");
+	append(*sb, "#bake_arguments SIQuantity(\n");
+JAI,
+	() => fieldsTemplate(
+		#string JAI
+	print(
+		*sb,
+		"\\t%1Num=\%, %1Denom=\%, %1Exp=\%, %1Scale=\%, %1Offset=\%,",
+		parameters.%1Num,
+		parameters.%1Denom,
+		parameters.%1Exp,
+		parameters.%1Scale,
+		parameters.%1Offset
+	);
+JAI,
+		"\n"
+	),
+	() => #string JAI
+	append(*sb, ");\n");
 	return builder_to_string(*sb);
 }
-
-// Normalize ratios (internal utility)
 
 #scope_file
 
@@ -341,8 +355,9 @@ JAI,
 #scope_export
 
 JAI,
-	() => fieldsTemplate(
-		#string JAI
+	() => replace(
+		fieldsTemplate(
+			#string JAI
 %2 :: inline (mod: (q: SIQuantityTypeParams) -> SIQuantityTypeParams, p: SIQuantityTypeParams = .{}) -> SIQuantityTypeParams {
 	return %2(p, mod);
 }
@@ -365,8 +380,11 @@ JAI,
 }
 %2s :: %2;
 JAI,
-		"\n",
-		name => lowerInitial(name)
+			"\n",
+			name => lowerInitial(name)
+		),
+		"KilogramNum = 1;",
+		"KilogramNum = 1000;"
 	),
 	() => #string JAI
 
@@ -610,18 +628,16 @@ JAI,
 	() => #string JAI
 }
 
-/*
-isSIQuantityType :: (T: Type) -> bool {
-	info := type_info(T);
-
+isSIQuantityType :: (info: *Type_Info_Struct) -> bool {
 	if info.type != .STRUCT  return false;
+
+
 	if info.polymorph_source_struct && info.polymorph_source_struct.name == "SIQuantity"  return true;
 	if info.name == "SIQuantity"  return true;	// Probably ok?
 
 
 	return false;
 }
-*/
 
 ipow :: (base: float64, exponent: int) -> float64 {
 	if exponent == 0  return 1.0;
@@ -751,16 +767,14 @@ JAI,
 
 #scope_export
 
-operator == :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
-	return isStrictlyIdenticalUnits(lhs, rhs);
-}
-
 isUnit :: (t: Type, p: SIQuantityTypeParams) -> bool #compile_time {
 	a := getSIParameters(t);
 	return isStrictlyIdenticalUnits(a, p);
 }
 
-// ====== Unit Constructor Builders (generated) ======
+operator == :: inline (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> bool {
+	return isStrictlyIdenticalUnits(lhs, rhs);
+}
 
 operator + :: (lhs: SIQuantityTypeParams, rhs: SIQuantityTypeParams) -> SIQuantityTypeParams {
 	modCheck(*lhs, dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
@@ -788,37 +802,13 @@ JAI
 
 	return a;
 }
-
-// ====== Core Type System & Arithmetic Operators ======
-
-// ====== Addition operator hierarchy ======
-//
-// The operator + is implemented in three tiers to balance performance and convenience:
-//
-// 1. FAST PATH (exact match): operator+(T, T) -> T
-//    - Used when both operands are the exact same type.
-//    - Direct arithmetic with no conversion overhead.
-//    - Preferred over relaxed path when type match exists.
-//
-// 2. GUARDED RELAXED PATH: operator+(T, U, $MUL, $ADD) -> RET
-//    - Handles mixed-ratio unit conversions (e.g., meters + kilometers).
-//    - #modify guard computes conversion constants (MUL, ADD) at compile-time.
-//    - Constants are baked into the specialized operator body.
-//    - Guard returns false (delegating to other overloads) for:
-//      * T == U (prefer faster same-type overload)
-//      * Incompatible dimensions (let compiler error on overload failure)
-//      * Unsupported affine mappings (reject at compile-time with reason)
-//    - Result is always in LHS frame (T) to provide predictable semantics.
-//
-// 3. REJECTION: #modify returns (false, reason_string)
-//    - When operation is invalid, guard emits diagnostic.
-//    - Overload resolution falls through and fails with compiler error.
-
+// Fast path for same-type addition:
 operator + :: (a: $T/SIQuantity, b: T) -> T {
 	result: T;
 	result.amount = a.amount + b.amount;
 	return result;
 }
+// Relaxed path for different-type addition with compile-time conversion check:
 operator + :: (a: $T/SIQuantity, b: $U/SIQuantity, $MUL: float64 = 1.0, $ADD: float64 = 0.0) -> $RET
 #modify {
 	// Prefer the existing same-type overload for the minimal runtime path.
@@ -898,35 +888,13 @@ JAI
 
 	return a;
 }
-
-// ====== Subtraction operator hierarchy ======
-//
-// The operator - follows the same three-tier structure as operator +:
-//
-// 1. FAST PATH (exact match): operator-(T, T) -> T
-//    - Used when both operands are the exact same type.
-//    - Direct arithmetic with no conversion overhead.
-//    - Preferred over relaxed path when type match exists.
-//
-// 2. GUARDED RELAXED PATH: operator-(T, U, $MUL, $ADD) -> RET
-//    - Handles mixed-ratio unit conversions (e.g., kilometers - meters).
-//    - #modify guard computes conversion constants (MUL, ADD) at compile-time.
-//    - Constants are baked into the specialized operator body.
-//    - Guard returns false (delegating to other overloads) for:
-//      * T == U (prefer faster same-type overload)
-//      * Incompatible dimensions (let compiler error on overload failure)
-//      * Unsupported affine mappings (reject at compile-time with reason)
-//    - Result is always in LHS frame (T) to provide predictable semantics.
-//
-// 3. REJECTION: #modify returns (false, reason_string)
-//    - When operation is invalid, guard emits diagnostic.
-//    - Overload resolution falls through and fails with compiler error.
-
+// Fast path for same-type subtraction:
 operator - :: (a: $T/SIQuantity, b: T) -> T {
 	result: T;
 	result.amount = a.amount - b.amount;
 	return result;
 }
+// Relaxed path for different-type subtraction with compile-time conversion check:
 operator - :: (a: $T/SIQuantity, b: $U/SIQuantity, $MUL: float64 = 1.0, $ADD: float64 = 0.0) -> $RET
 #modify {
 	// Prefer the existing same-type overload for the minimal runtime path.
@@ -988,26 +956,13 @@ JAI
 
 	return a;
 }
-
-// ====== Multiplication operator with mixed-ratio normalization ======
-//
-// operator * handles both same-ratio and mixed-ratio multiplication:
-//
-// 1. SAME-RATIO PATH: Direct arithmetic (handled implicitly through metadata)
-//    - When both operands have compatible ratio metadata, no conversion needed.
-//    - Runtime body uses only direct multiplication.
-//
-// 2. MIXED-RATIO PATH: Normalization constant baked at compile-time
-//    - #modify guard detects ratio mismatch on overlapping dimensions.
-//    - Computes RHS_FACTOR to normalize RHS into LHS frame before multiply.
-//    - RHS_FACTOR is baked into specialized operator body.
-//    - Runtime body: result = x * y * RHS_FACTOR (one extra multiply of constant).
-//    - Result is in LHS unit frame to provide predictable semantics.
-//
-// 3. REJECTION: Guard returns false with diagnostic for invalid operations
-//    - Incompatible dimensions or unsupported affine combinations.
-//    - Offset-bearing quantities are rejected (semantically invalid).
-
+// Fast path for same-type multiplication:
+operator * :: (a: $T/SIQuantity, b: T) -> T {
+	result: T;
+	result.amount = a.amount * b.amount;
+	return result;
+}
+// Relaxed path for different-type multiplication with compile-time conversion check:
 operator * :: (x: $T/SIQuantity, y: $U/SIQuantity, $RHS_FACTOR: float64 = 1.0) -> $RET
 #modify {
 	lhs := getSIParameters(T);
@@ -1086,26 +1041,13 @@ JAI
 
 	return a;
 }
-
-// ====== Division operator with mixed-ratio normalization ======
-//
-// operator / handles both same-ratio and mixed-ratio division:
-//
-// 1. SAME-RATIO PATH: Direct arithmetic (handled implicitly through metadata)
-//    - When both operands have compatible ratio metadata, no conversion needed.
-//    - Runtime body uses only direct division.
-//
-// 2. MIXED-RATIO PATH: Normalization constant baked at compile-time
-//    - #modify guard detects ratio mismatch on overlapping dimensions.
-//    - Computes RHS_FACTOR to normalize RHS into LHS frame before divide.
-//    - RHS_FACTOR is baked into specialized operator body.
-//    - Runtime body: result = x / (y * RHS_FACTOR) (one extra multiply of constant).
-//    - Result is in LHS unit frame to provide predictable semantics.
-//
-// 3. REJECTION: Guard returns false with diagnostic for invalid operations
-//    - Incompatible dimensions or unsupported affine combinations.
-//    - Offset-bearing quantities are rejected (semantically invalid).
-
+// Fast path for same-type division:
+operator / :: (a: $T/SIQuantity, b: T) -> T {
+	result: T;
+	result.amount = a.amount / b.amount;
+	return result;
+}
+// Relaxed path for different-type division with compile-time conversion check:
 operator / :: (x: $T/SIQuantity, y: $U/SIQuantity, $RHS_FACTOR: float64 = 1.0) -> $RET
 #modify {
 	lhs := getSIParameters(T);
@@ -1139,39 +1081,19 @@ operator / :: (x: $T/SIQuantity, scaleFactor: T.DataType) -> T {
 
 ExpHolder :: struct(exp: int) { EXP :: exp; }
 
-// Temporary workaround for compiler issue with EXP in pow/root call paths.
-EXP_STANDIN_FOR_COMPILER_BUG :: 2;
-
-/*
-WORKAROUND REVERT CHECKLIST (remove after compiler fixes land):
-1) pow(x, ExpHolder($EXP)): restore runtime use of EXP in #modify and body.
-2) root(pp, ExpHolder($EXP)): restore original exponent divisibility/type-transform logic.
-3) root(x, ExpHolder($EXP)): restore runtime amount calculation using EXP-based root.
-4) boxSI #modify: restore isSIQuantityType(T) guard.
-5) isSIQuantityType: un-comment and re-enable when constant-Type evaluation bug is fixed.
-6) Re-run tests and re-enable disabled assertions/cases in tests.jai and demo.jai.
-*/
-
-pow :: (pp: SIQuantityTypeParams, e: ExpHolder($EXP)) -> SIQuantityTypeParams {
+pow :: (pp: SIQuantityTypeParams, exp: int) -> SIQuantityTypeParams {
 	p := pp;
 
-	#insert #run,stallable tprint(
-		#string Jai
 JAI,
-	() => fieldsTemplate("\tp.%Exp *= \%1;", "\n"),
+	() => fieldsTemplate("\tp.%Exp *= exp;", "\n"),
 	() => #string JAI
-
-Jai,
-		EXP
-	);
 
 	return normalise(p);
 }
 pow :: (x: $T/SIQuantity, e: ExpHolder($EXP)) -> $RET
 #modify {
-	print("pow: exp = %\n", EXP_STANDIN_FOR_COMPILER_BUG);
 	a := getSIParameters(T);
-	a = pow(a, ExpHolder(EXP_STANDIN_FOR_COMPILER_BUG).{});
+	a = pow(a, (*EXP).(*int).*);
 	validate(a);
 
 
@@ -1179,73 +1101,93 @@ pow :: (x: $T/SIQuantity, e: ExpHolder($EXP)) -> $RET
 	return true;
 } {
 	result: RET;
-	result.amount = xx pow(x.amount, EXP_STANDIN_FOR_COMPILER_BUG);
+	result.amount = xx pow(x.amount.(float64), EXP.(float64));
 	return result;
 }
 
-square :: squared;
-squared :: #bake_arguments (#procedure_of_call pow(SIQuantityTypeParams.{}, ExpHolder(2).{}))(e=ExpHolder(2).{});
-squared :: #bake_arguments (#procedure_of_call pow(metre(), ExpHolder(2).{}))(e=ExpHolder(2).{});
-cube :: cubed;
-cubed :: #bake_arguments (#procedure_of_call pow(SIQuantityTypeParams.{}, ExpHolder(3).{}))(e=ExpHolder(3).{});
-cubed :: #bake_arguments (#procedure_of_call pow(metre(), ExpHolder(3).{}))(e=ExpHolder(3).{});
+squared :: #bake_arguments (#procedure_of_call pow(SIQuantityTypeParams.{}, 2))(exp=2);
+square :: (x: $T/SIQuantity) -> $RET #modify {
+	a := getSIParameters(T);
+	a = pow(a, 2);
+	validate(a);
 
-root :: (pp: SIQuantityTypeParams, e: ExpHolder($EXP)) -> SIQuantityTypeParams {
-	/*
+	buildReturnType(a);
+	return true;
+} {
+	return pow(x, ExpHolder(2).{});
+}
+cubed :: #bake_arguments (#procedure_of_call pow(SIQuantityTypeParams.{}, 3))(exp=3);
+cube :: (x: $T/SIQuantity) -> $RET #modify {
+	a := getSIParameters(T);
+	a = pow(a, 3);
+	validate(a);
+
+	buildReturnType(a);
+	return true;
+} {
+	return pow(x, ExpHolder(3).{});
+}
+
+root :: (pp: SIQuantityTypeParams, exp: int) -> SIQuantityTypeParams {
 	p := pp;
 
-	// Exponents must be divisible by exp//LATER: consider fractional exponents?
-	#insert #run tprint(
-		#string Jai
+	// Exponents must be divisible by exp.	//LATER: consider fractional exponents?
 JAI,
-	() => fieldsTemplate("p.%Exp \\\\\% \\%1", " && ", prefix="\tif ", suffix=#string JAI
+	() => fieldsTemplate(
+		"p.%Exp \% exp",
+		" || ",
+		prefix="\tif ",
+		suffix=#string JAI
  {
-		p.validationError = tprint("\\nUnitsError: Can not apply \\\%1root to non-multiples of \\\%1.\\n[\%]\\n", p);
+		p.validationError = tprint("\\nUnitsError: Can not apply %root to non-multiples of %1.\\nGot: %\\n", exp, p);
 		return p;
 	}
+
+
 JAI
 	),
+	() => fieldsTemplate("\tp.%Exp /= exp;", "\n"),
 	() => #string JAI
-		EXP
-	);
-
-	#insert #run tprint(
-		#string Jai
-JAI,
-	() => fieldsTemplate("\tp.%Exp /= \%1;", "\n"),
-	() => #string JAI
-
-Jai,
-		EXP
-	);
 
 	return normalise(p);
-	*/
-	return normalise(pp);
 }
 root :: (x: $T/SIQuantity, e: ExpHolder($EXP)) -> $RET
 #modify {
-	print("root: exp = %\n", EXP_STANDIN_FOR_COMPILER_BUG);
 	a := getSIParameters(T);
-	a = root(a, ExpHolder(EXP_STANDIN_FOR_COMPILER_BUG).{});
+	a = root(a, (*EXP).(*int).*);
 	validate(a);
 
 	buildReturnType(a);
 	return true;
 } {
 	result : RET;
-	/*
-	result.amount = xx root(x.amount, 1.0 / EXP);
-	*/
-	result.amount = xx sqrt(x.amount);
+	result.amount = xx pow(x.amount.(float64), 1.0 / EXP.(float64));
 	return result;
 }
 
-sqrt :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, ExpHolder(2).{}))(e=ExpHolder(2).{});
-sqrt :: #bake_arguments (#procedure_of_call root(metres(), ExpHolder(2).{}))(e=ExpHolder(2).{});
+squareRooted :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, 2))(exp=2);
+sqrt :: (x: $T/SIQuantity) -> $RET #modify {
+	a := getSIParameters(T);
+	a = root(a, 2);
+	validate(a);
+
+	buildReturnType(a);
+	return true;
+} {
+	return root(x, ExpHolder(2).{});
+}
 squareRoot :: sqrt;
-cubeRoot :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, ExpHolder(3).{}))(e=ExpHolder(3).{});
-cubeRoot :: #bake_arguments (#procedure_of_call root(metres(), ExpHolder(3).{}))(e=ExpHolder(3).{});
+cubeRooted :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, 3))(exp=3);
+cubeRoot :: (x: $T/SIQuantity) -> $RET #modify {
+	a := getSIParameters(T);
+	a = root(a, 3);
+	validate(a);
+
+	buildReturnType(a);
+	return true;
+} {
+	return root(x, ExpHolder(3).{});
+}
 
 // ====== Public API: Conversion & Utility Functions ======
 
@@ -1255,10 +1197,7 @@ unboxSI :: (x: $T/SIQuantity) -> T.DataType {
 
 boxSI :: (target: $T/Type, value: $V) -> T
 #modify {
-	/*
-	return isSIQuantityType(T), tprint("Type % is not a SIQuantity type", T);
-	*/
-	return true;
+	return isSIQuantityType(xx T), tprint("Type % is not a SIQuantity type", T);
 } {
 	result: T;
 	result.amount = xx value;
@@ -1391,6 +1330,12 @@ JAI
 
 #import "Basic";
 #import "Compiler";
-#import "Math";
+using Math :: #import "Math";
+#poke_name Math operator+;
+#poke_name Math operator-;
+#poke_name Math operator*;
+#poke_name Math operator/;
+//#poke_name Math operator==;
+
 #import "Print_Vars";
 #import "String";

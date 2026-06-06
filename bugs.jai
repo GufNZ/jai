@@ -12,19 +12,22 @@ root :: (x: int, e: ExpHolder($EXP)) -> int {
 }
 root :: (s: string, e: ExpHolder($EXP)) -> $RET
 #modify {
-	print("root: exp = %\n", EXP);
+	//debug_break();
+	//print("root: exp = %\n", EXP);
+	print("*EXP: %\n", *EXP);
+	print("EXP: %\n", (*EXP).(*int).*);
 
 	//BUG: this one gets Error: Type mismatch. Type wanted: s64; type given: Type.
 	//print("<%\n", root(42, ExpHolder(EXP).{}));
 
-	//BUG: this one just segfaults the compiler..!
-	print("<%\n", root(42, ExpHolder(9/*EXP*/).{}));
+	////BUG: this one just segfaults the compiler..!
+	//print("<%\n", root(42, ExpHolder(9/*EXP*/).{}));
 
 	RET = int;
 
 	return true;
 } {
 	result : RET;
-	result.amount = xx root(s.count, 1.0 / EXP);
+	result = EXP;
 	return result;
 }

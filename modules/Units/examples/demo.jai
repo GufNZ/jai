@@ -47,8 +47,23 @@ calc_ballistic_range :: (
 	initial_height: Meters(float)
 ) -> Meters(float)
 {
-	// Temporary compile workaround while root/pow type transforms are disabled.
-	return initial_height;
+assert(speed.amount > 0.0);
+	assert(gravity.amount > 0.0);
+	assert(initial_height.amount >= 0.0);
+
+	d2r : float: cast(float)0.01745329252;
+	angle : float: 45.0 * d2r;
+	ang_cos := cos(angle);
+	ang_sin := sin(angle);
+
+	return (speed * ang_cos / gravity)
+		* (
+			speed * ang_sin
+			+ sqrt(
+				speed * speed * ang_sin * ang_sin
+				+ 2.0 * gravity * initial_height
+			)
+		);
 }
 
 calc_ballistic_range2 :: (
@@ -57,17 +72,45 @@ calc_ballistic_range2 :: (
 	initial_height: $V/SIQuantity
 ) -> $RET
 #modify {
+	s := getSIParameters(T);
+	g := getSIParameters(U);
 	i := getSIParameters(V);
-	r := i;
+
+	r := (s / g) * (s + sqrt(square(s) + g * i));
 	validate(r);
 
-	buildReturnType(r);
+
+	R = buildReturnType(r);
 	return true;
 } {
-	// Temporary compile workaround while root/pow type transforms are disabled.
-	return initial_height;
+	// Make sure units are correct:
+	#assert T.MetreExp == 1 && T.KilogramExp == 0 && T.SecondExp == -1;
+	#assert U.MetreExp == 1 && U.KilogramExp == 0 && U.SecondExp == -2;
+	#assert V.MetreExp == 1 && V.KilogramExp == 0 && V.SecondExp == 0;
+
+	assert(speed.amount > 0.0);
+	assert(gravity.amount > 0.0);
+	assert(initial_height.amount >= 0.0);
+
+	d2r : speed.DataType: xx 0.01745329252;
+	angle :: 45.0 * d2r;
+	ang_cos := cos(angle);
+	ang_sin := sin(angle);
+
+	return (speed * ang_cos / gravity)
+		* (
+			speed * ang_sin
+			+ sqrt(
+				speed * speed * ang_sin * ang_sin
+				+ 2.0 * gravity * initial_height
+			)
+		);
 }
 
 #import "Units";
 #import "Basic";
-#import "Math";
+using Math :: #import "Math";
+#poke_name Math operator+;
+#poke_name Math operator-;
+#poke_name Math operator*;
+#poke_name Math operator/;
