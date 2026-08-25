@@ -1,4 +1,4 @@
-#module_parameters ()(AMERICAN_SPELLING := true, UNTYPED_ADD_SUBTRACT := false, WANTED_UNITS := SIQuantities.ALL_SI_UNITS) {
+#module_parameters ()(AMERICAN_SPELLING := true, UNTYPED_ADD_SUBTRACT := false, WANTED_UNITS := SIQuantities.ALL_SI_UNITS, DEBUG := false) {
 	SIQuantities :: enum_flags u64 {
 		NONE :: 0;
 
@@ -76,10 +76,14 @@
 #assert WANTED_UNITS & ~.EVERYTHING == .NONE;
 
 #if AMERICAN_SPELLING && WANTED_UNITS & .LENGTH {
-	Meter :: Metre;
-	Meters :: Metre;
-	meter :: metre;
-	meters :: metres;
+	#insert #run,stallable tprint(
+		#string JAI
+Meter :: Metre;
+Meters :: Metre;
+meter :: metre;
+meters :: metres;
+JAI
+	);
 }
 
 /*
@@ -460,7 +464,7 @@ JAI,
 		n: int = 1;
 		s: float64 = 1.0;
 		for big {
-			if S64_MAX / n < 1000 {
+			if M.S64_MAX / n < 1000 {
 				s *= 1000;
 			} else {
 				n *= 1000;
@@ -473,7 +477,7 @@ JAI,
 		n = 1;
 		s = 1.0;
 		for small {
-			if S64_MAX / n < 1000 {
+			if M.S64_MAX / n < 1000 {
 				s /= 1000;
 			} else {
 				n *= 1000;
@@ -968,6 +972,8 @@ operator * :: (x: $T/SIQuantity, y: $U/SIQuantity, $RHS_FACTOR: float64 = 1.0) -
 	lhs := getSIParameters(T);
 	rhs := getSIParameters(U);
 
+	if T == U  return false, "Prefer the same-type `*` overload.";
+
 	modCheck(dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
 
 
@@ -1053,6 +1059,8 @@ operator / :: (x: $T/SIQuantity, y: $U/SIQuantity, $RHS_FACTOR: float64 = 1.0) -
 	lhs := getSIParameters(T);
 	rhs := getSIParameters(U);
 
+	if T == U  return false, "Prefer the same-type `/` overload.";
+
 	modCheck(dataTypesMatch(lhs, rhs), "UnitsError: Quantities must have same DataType.\n  a: [%]\n  b: [%]", lhs, rhs);
 
 
@@ -1106,17 +1114,10 @@ pow :: (x: $T/SIQuantity, e: ExpHolder($EXP)) -> $RET
 }
 
 squared :: #bake_arguments (#procedure_of_call pow(SIQuantityTypeParams.{}, 2))(exp=2);
-square :: (x: $T/SIQuantity) -> $RET #modify {
-	a := getSIParameters(T);
-	a = pow(a, 2);
-	validate(a);
-
-	buildReturnType(a);
-	return true;
-} {
-	return pow(x, ExpHolder(2).{});
-}
 cubed :: #bake_arguments (#procedure_of_call pow(SIQuantityTypeParams.{}, 3))(exp=3);
+cube :: (p: SIQuantityTypeParams) -> SIQuantityTypeParams {	//QUESTION: why do I need this?  Why is #poke_name not enough?
+	return pow(p, 3);
+}
 cube :: (x: $T/SIQuantity) -> $RET #modify {
 	a := getSIParameters(T);
 	a = pow(a, 3);
@@ -1166,6 +1167,9 @@ root :: (x: $T/SIQuantity, e: ExpHolder($EXP)) -> $RET
 }
 
 squareRooted :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, 2))(exp=2);
+sqrt :: (p: SIQuantityTypeParams) -> SIQuantityTypeParams {	//QUESTION: why do I need this?  Why is #poke_name not enough?
+	return root(p, 2);
+}
 sqrt :: (x: $T/SIQuantity) -> $RET #modify {
 	a := getSIParameters(T);
 	a = root(a, 2);
@@ -1178,6 +1182,9 @@ sqrt :: (x: $T/SIQuantity) -> $RET #modify {
 }
 squareRoot :: sqrt;
 cubeRooted :: #bake_arguments (#procedure_of_call root(SIQuantityTypeParams.{}, 3))(exp=3);
+cubeRoot :: (p: SIQuantityTypeParams) -> SIQuantityTypeParams {	//QUESTION: why do I need this?  Why is #poke_name not enough?
+	return root(p, 3);
+}
 cubeRoot :: (x: $T/SIQuantity) -> $RET #modify {
 	a := getSIParameters(T);
 	a = root(a, 3);
@@ -1328,14 +1335,16 @@ boxSI :: (target: $T/Type, value: $V) -> T
 JAI
 );
 
+#scope_file
+
 #import "Basic";
 #import "Compiler";
-using Math :: #import "Math";
-#poke_name Math operator+;
-#poke_name Math operator-;
-#poke_name Math operator*;
-#poke_name Math operator/;
-//#poke_name Math operator==;
+M :: #import "Math";
+#poke_name M operator+;
+#poke_name M operator-;
+#poke_name M operator*;
+#poke_name M operator/;
+//#poke_name M operator==;
 
 #import "Print_Vars";
 #import "String";

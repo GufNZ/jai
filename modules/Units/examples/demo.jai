@@ -51,8 +51,8 @@ assert(speed.amount > 0.0);
 	assert(gravity.amount > 0.0);
 	assert(initial_height.amount >= 0.0);
 
-	d2r : float: cast(float)0.01745329252;
-	angle : float: 45.0 * d2r;
+	d2r :float: xx 0.01745329252;
+	angle :float: 45.0 * d2r;
 	ang_cos := cos(angle);
 	ang_sin := sin(angle);
 
@@ -60,7 +60,7 @@ assert(speed.amount > 0.0);
 		* (
 			speed * ang_sin
 			+ sqrt(
-				speed * speed * ang_sin * ang_sin
+				square(speed * ang_sin)
 				+ 2.0 * gravity * initial_height
 			)
 		);
@@ -101,7 +101,7 @@ calc_ballistic_range2 :: (
 		* (
 			speed * ang_sin
 			+ sqrt(
-				speed * speed * ang_sin * ang_sin
+				square(speed * ang_sin)
 				+ 2.0 * gravity * initial_height
 			)
 		);
@@ -109,8 +109,4 @@ calc_ballistic_range2 :: (
 
 #import "Units";
 #import "Basic";
-using Math :: #import "Math";
-#poke_name Math operator+;
-#poke_name Math operator-;
-#poke_name Math operator*;
-#poke_name Math operator/;
+#import "Math";
