@@ -236,7 +236,7 @@ MAX_SIZE : BucketSize : SIZES_CONFIG.count + 3;
 CAPS_VERSION_STRING :: "Bucket_Allocator v1.2";
 
 initBucket :: (bucket: *BucketSet($S, $L)) {
-	for < L - 1..0 {
+	for < 0..L - 1 {
 		ref := *bucket.refs[it];
 		ref.item = xx *bucket.items[it];
 		ref.next = bucket.freeList;

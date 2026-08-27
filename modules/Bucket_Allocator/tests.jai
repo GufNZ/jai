@@ -54,7 +54,7 @@ main :: () {
 	print("\n%\n\n", tests);
 }
 
-tests :: Test.[
+tests := Test.[
 	.{size = 1},		// 0
 	.{size = 2},		// 1
 	.{size = 3},		// 2
