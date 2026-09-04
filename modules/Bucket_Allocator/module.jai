@@ -319,15 +319,56 @@ allocate :: (using bucketAllocator: *BucketAllocator, mode: Allocator_Mode, requ
 
 calculateSize :: (requestedSize: s64) -> BucketSize {
 	assert(requestedSize > 0, ifx requestedSize then "Can't allocate negative size!" else "Can't allocate 0 size!");
-	//TODO: #asm to find the top bit...
-	size : BucketSize = 4;
-	length := 1<<size;
-	while length < requestedSize {
-		size += 1;
-		length <<= 1;
+	//asmVersion :: (requestedSize: s64) -> s64 {				baseline cost
+	if requestedSize <= 16 {	//NOTE: the asm version does not work for requestedSize = 1, so we just shortcut here.
+		return 4;
 	}
 
-	return size;
+
+	result: s64 = ---;
+	#asm {
+		sub requestedSize, 1;			// we want ceil not floor, hence -1.
+		bsr result, requestedSize;		// result = floor(log2(requestedSize)).
+		add result, 1;					// we ceil not floor, hence +1.
+	}
+	return result;
+	//}
+
+	//mathVersion :: (requestedSize: s64) -> s64 {				19.8x cost
+	//	return max(4, ceil(log2(xx requestedSize)).(s64));
+	//}
+	//
+	//loopVersion :: (requestedSize: s64) -> s64 {				6.8x cost
+	//	size : s64 = 4;
+	//	length := 1<<size;
+	//	while length < requestedSize {
+	//		size += 1;
+	//		length <<= 1;
+	//	}
+	//
+	//	return size;
+	//}
+
+	//searchVersion :: (requestedSize: s64) -> s64 {			2.3x cost
+	//	size := 4;
+	//
+	//	if requestedSize <= 16 {
+	//		return size;
+	//	}
+	//
+	//
+	//	x := (requestedSize - 1) >> 4;	// we want ceil not floor, hence -1.
+	//
+	//	if x >= (1 << 32) {	x >>= 32;	size += 32;	}
+	//	if x >= (1 << 16) {	x >>= 16;	size += 16;	}
+	//	if x >= (1 <<  8) {	x >>=  8;	size +=  8;	}
+	//	if x >= (1 <<  4) {	x >>=  4;	size +=  4;	}
+	//	if x >= (1 <<  2) {	x >>=  2;	size +=  2;	}
+	//	if x >= (1 <<  1) {				size +=  1;	}
+	//
+	//	return size + 1;				// we want ceil not floor, hence +1.
+	//}
+
 }
 
 allocateNew :: inline (using bucketAllocator: *BucketAllocator, size: BucketSize) -> *BucketItemRef {
