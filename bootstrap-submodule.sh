@@ -31,23 +31,74 @@ prompt() {
 }
 
 TMP=""
+IGNORED_ARCHIVE=""
+IGNORED_ACTION=""
+FILTER_REPO_PYTHON=""
+ROLLBACK_SUBPATH=""
 
 cleanup() {
+	cd "$ROOT"
+
 	if [ -n "$TMP" ] && [ -d "$TMP" ]; then
 		rm -rf "$TMP"
+	fi
+
+	if [ -n "$ROLLBACK_SUBPATH" ]; then
+		warning "Restoring tracked source after failed submodule replacement:"
+		warning "	$ROLLBACK_SUBPATH"
+
+		if ! git restore \
+			--source=HEAD \
+			--staged \
+			--worktree \
+			-- "$ROLLBACK_SUBPATH"; then
+			error "Automatic source restoration failed."
+		fi
+	fi
+
+	if [ -n "$IGNORED_ARCHIVE" ] && [ -f "$IGNORED_ARCHIVE" ]; then
+		tar -xzf "$IGNORED_ARCHIVE" -C "$ROOT"
+		rm -f "$IGNORED_ARCHIVE"
 	fi
 }
 
 trap cleanup EXIT
 
 ensure_filter_repo() {
-	if command -v git-filter-repo >/dev/null 2>&1; then
-		return
+	local PYTHON
+
+	for PYTHON in python3 python
+	do
+		if command -v "$PYTHON" >/dev/null 2>&1 && \
+			"$PYTHON" -c 'import git_filter_repo' >/dev/null 2>&1; then
+			FILTER_REPO_PYTHON="$(command -v "$PYTHON")"
+			return
+		fi
+	done
+
+	for PYTHON in python3 python
+	do
+		if command -v "$PYTHON" >/dev/null 2>&1 && \
+			"$PYTHON" -m pip --version >/dev/null 2>&1; then
+			FILTER_REPO_PYTHON="$(command -v "$PYTHON")"
+			break
+		fi
+	done
+
+	if [ -z "$FILTER_REPO_PYTHON" ]; then
+		error "Python with pip is required to install git-filter-repo."
+		exit 1
 	fi
 
 
 	normal "Installing git-filter-repo..."
-	python -m pip install git-filter-repo
+	"$FILTER_REPO_PYTHON" -m pip install git-filter-repo
+
+	if ! "$FILTER_REPO_PYTHON" -c 'import git_filter_repo' >/dev/null 2>&1; then
+		error "git-filter-repo was installed but cannot be imported by:"
+		error "	$FILTER_REPO_PYTHON"
+		exit 1
+	fi
 }
 
 create_conf_if_missing() {
@@ -81,11 +132,22 @@ create_conf_if_missing() {
 }
 
 install_commit_script() {
+	local COMMIT_SCRIPT=".repo-tools/commit-all.sh"
+
 	mkdir -p .repo-tools
 
-	if [ ! -f .repo-tools/commit-all.sh ]; then
-		cat > .repo-tools/commit-all.sh <<'EOF'
+	if [ -f "$COMMIT_SCRIPT" ] && \
+		! grep -q '^# Installed by bootstrap-submodule.sh$' "$COMMIT_SCRIPT"; then
+		warning "Preserving existing unmanaged commit helper:"
+		warning "	$COMMIT_SCRIPT"
+		chmod +x "$COMMIT_SCRIPT"
+		return
+	fi
+
+
+	cat > "$COMMIT_SCRIPT" <<'EOF'
 #!/usr/bin/env bash
+# Installed by bootstrap-submodule.sh
 
 set -e
 
@@ -120,6 +182,37 @@ error() {
 
 prompt() {
 	printf '%b%s%b' "$INPUT" "$*" "$RESET"
+}
+
+read_choice() {
+	local NONINTERACTIVE_CHOICE="$1"
+	local NONINTERACTIVE_MESSAGE="$2"
+
+	if [ -t 0 ]; then
+		prompt "Choice: "
+		read -r CHOICE
+		return
+	fi
+
+
+	CHOICE="$NONINTERACTIVE_CHOICE"
+	warning "$NONINTERACTIVE_MESSAGE"
+}
+
+submodule_git() {
+	local SUBMODULE="$1"
+	local VARIABLE
+
+	shift
+
+	(
+		for VARIABLE in $(git rev-parse --local-env-vars)
+		do
+			unset "$VARIABLE"
+		done
+
+		git -C "$SUBMODULE" "$@"
+	)
 }
 
 rm -f "$SUCCESS_FILE" "$FAILED_FILE"
@@ -208,21 +301,23 @@ do
 	fi
 
 
-	if ! git submodule status -- "$SUBMODULE" >/dev/null 2>&1; then
+	INDEX_MODE="$(git ls-files --stage -- "$SUBMODULE" | awk 'NR == 1 { print $1 }')"
+
+	if [ "$INDEX_MODE" != "160000" ]; then
 		error "Configured path is not a submodule:"
 		error "	$SUBMODULE"
 		exit 1
 	fi
 
 
-	if [ -z "$(git -C "$SUBMODULE" rev-parse --show-superproject-working-tree 2>/dev/null)" ]; then
+	if [ -z "$(submodule_git "$SUBMODULE" rev-parse --show-superproject-working-tree 2>/dev/null)" ]; then
 		error "Submodule is not initialized:"
 		error "	$SUBMODULE"
 		exit 1
 	fi
 
 
-	STATUS="$(git -C "$SUBMODULE" status --porcelain --untracked-files=normal)"
+	STATUS="$(submodule_git "$SUBMODULE" status --porcelain --untracked-files=normal)"
 	HAS_STAGED=0
 	HAS_UNSTAGED=0
 
@@ -244,15 +339,16 @@ do
 
 	if [ "$HAS_UNSTAGED" -eq 1 ] && [ "$HAS_STAGED" -eq 1 ]; then
 		warning "Submodule $SUBMODULE contains staged and unstaged changes."
+		submodule_git "$SUBMODULE" status --short
 		normal "1) Abort"
 		normal "2) Stage everything and continue"
 		normal "3) Commit only staged changes"
 
-		prompt "Choice: "
-		read -r CHOICE
+		read_choice 3 \
+			"No interactive input available; committing only staged changes."
 		case "$CHOICE" in
 			2)
-				git -C "$SUBMODULE" add -A
+				submodule_git "$SUBMODULE" add -A
 				;;
 			3)
 				;;
@@ -265,14 +361,15 @@ do
 
 	if [ "$HAS_UNSTAGED" -eq 1 ] && [ "$HAS_STAGED" -eq 0 ]; then
 		warning "Submodule $SUBMODULE contains only unstaged changes."
+		submodule_git "$SUBMODULE" status --short
 		normal "1) Abort"
 		normal "2) Stage everything and continue"
 
-		prompt "Choice: "
-		read -r CHOICE
+		read_choice 1 \
+			"No interactive input available; stage the submodule changes or run commit-all.sh from a terminal."
 		case "$CHOICE" in
 			2)
-				git -C "$SUBMODULE" add -A
+				submodule_git "$SUBMODULE" add -A
 				;;
 			*)
 				exit 1
@@ -281,14 +378,14 @@ do
 	fi
 
 
-	if ! git -C "$SUBMODULE" diff --cached --quiet; then
+	if ! submodule_git "$SUBMODULE" diff --cached --quiet; then
 		normal "Committing $SUBMODULE ..."
 
-		git -C "$SUBMODULE" \
+		submodule_git "$SUBMODULE" \
 			-c core.hooksPath=/dev/null \
 			commit -m "$MESSAGE"
 
-		git -C "$SUBMODULE" push
+		submodule_git "$SUBMODULE" push
 		git add "$SUBMODULE"
 		SUBMODULE_COMMITTED=1
 	fi
@@ -310,10 +407,9 @@ rm -f "$FAILED_FILE"
 touch "$SUCCESS_FILE"
 COMPLETED=1
 EOF
-	fi
 
 
-	chmod +x .repo-tools/commit-all.sh
+	chmod +x "$COMMIT_SCRIPT"
 }
 
 verify_tracked_content() {
@@ -329,15 +425,82 @@ verify_tracked_content() {
 verify_clean_content() {
 	local PATHNAME="$1"
 
-	if [ -z "$(git status --porcelain --untracked-files=all --ignored -- "$PATHNAME")" ]; then
+	if [ -z "$(git status --porcelain --untracked-files=all -- "$PATHNAME")" ]; then
 		return
 	fi
 
 
 	error "Refusing to extract a directory with local changes:"
 	error "	$PATHNAME"
-	git status --short --untracked-files=all --ignored -- "$PATHNAME"
+	git status --short --untracked-files=all -- "$PATHNAME"
 	exit 1
+}
+
+prepare_ignored_content() {
+	local PATHNAME="$1"
+
+	if [ -z "$(git ls-files --others --ignored --exclude-standard -- "$PATHNAME")" ]; then
+		return
+	fi
+
+
+	warning "Ignored files found under:"
+	warning "	$PATHNAME"
+	git status --short --ignored --untracked-files=all -- "$PATHNAME"
+
+	normal "Options:"
+	normal "1) Abort"
+	normal "2) Delete ignored files and continue"
+	normal "3) Preserve ignored files and continue"
+
+	prompt "Choice: "
+	read -r CHOICE
+
+	case "$CHOICE" in
+		2)
+			IGNORED_ACTION="delete"
+			;;
+		3)
+			IGNORED_ACTION="preserve"
+			IGNORED_ARCHIVE="$(mktemp "${TMPDIR:-/tmp}/submodule-ignored.XXXXXX.tar.gz")"
+			git ls-files \
+				--others \
+				--ignored \
+				--exclude-standard \
+				-z \
+				-- "$PATHNAME" |
+				tar --null -T - -czf "$IGNORED_ARCHIVE"
+			;;
+		*)
+			exit 1
+			;;
+	esac
+}
+
+remove_ignored_content() {
+	local PATHNAME="$1"
+
+	if [ -n "$IGNORED_ACTION" ]; then
+		git clean -fdX -- "$PATHNAME"
+	fi
+}
+
+restore_ignored_content() {
+	local PATHNAME="$1"
+
+	if [ "$IGNORED_ACTION" != "preserve" ]; then
+		return
+	fi
+
+
+	tar -xzf "$IGNORED_ARCHIVE" -C "$ROOT"
+	rm -f "$IGNORED_ARCHIVE"
+	IGNORED_ARCHIVE=""
+	IGNORED_ACTION=""
+
+	warning "Restored ignored files under:"
+	warning "	$PATHNAME"
+	warning "Add suitable ignore rules to the submodule if they appear as untracked files."
 }
 
 check_ignore() {
@@ -553,19 +716,54 @@ EOF
 	chmod +x "$HOOK"
 }
 
+is_submodule() {
+	local SUBPATH="$1"
+	local INDEX_MODE
+
+	INDEX_MODE="$(git ls-files --stage -- "$SUBPATH" | awk 'NR == 1 { print $1 }')"
+	[ "$INDEX_MODE" = "160000" ]
+}
+
+is_pending_submodule_conversion() {
+	local SUBPATH="$1"
+	local HEAD_MODE
+
+	HEAD_MODE="$(git ls-tree HEAD -- "$SUBPATH" | awk 'NR == 1 { print $1 }')"
+	[ "$HEAD_MODE" != "160000" ]
+}
+
+commit_submodule_conversion() {
+	local SUBPATH="$1"
+
+	git add .gitmodules
+	git add -f "$SUBPATH"
+
+	git \
+		-c core.hooksPath=/dev/null \
+		commit \
+		--only \
+		-m "Convert $SUBPATH to submodule" \
+		-- .gitmodules "$SUBPATH"
+}
+
 extract_submodule() {
 	local SUBPATH="$1"
 	local URL="$2"
 
-	if git submodule status "$SUBPATH" >/dev/null 2>&1; then
+	if is_submodule "$SUBPATH"; then
 		if [ -z "$(git -C "$SUBPATH" rev-parse --show-superproject-working-tree 2>/dev/null)" ]; then
 			normal "Initializing submodule: $SUBPATH"
 			git submodule update --init -- "$SUBPATH"
 		fi
 
-
 		normal "Skipping existing submodule:"
 		normal "	$SUBPATH"
+
+		if is_pending_submodule_conversion "$SUBPATH"; then
+			normal "Completing interrupted submodule conversion:"
+			normal "	$SUBPATH"
+			commit_submodule_conversion "$SUBPATH"
+		fi
 
 		install_detached_head_hook "$SUBPATH"
 
@@ -583,21 +781,23 @@ extract_submodule() {
 
 	verify_tracked_content "$SUBPATH"
 	verify_clean_content "$SUBPATH"
+	prepare_ignored_content "$SUBPATH"
 	ensure_filter_repo
 
 	local REPONAME
 
 	REPONAME="$(basename "$SUBPATH")"
-	TMP="$(mktemp -d "${TMPDIR:-/tmp}/${REPONAME}-extract.XXXXXX")"
+	TMP="$(mktemp -d "../${REPONAME}-extract.XXXXXX")"
 
 	normal "Extracting:"
 	normal "	$SUBPATH"
 
 	git clone . "$TMP"
+	TMP="$(cd "$TMP" && pwd)"
 
 	pushd "$TMP" >/dev/null
 
-	git filter-repo \
+	"$FILTER_REPO_PYTHON" -m git_filter_repo \
 		--force \
 		--path "$SUBPATH" \
 		--path-rename "$SUBPATH/":
@@ -611,27 +811,25 @@ extract_submodule() {
 
 	rm -rf "$TMP"
 	TMP=""
+	remove_ignored_content "$SUBPATH"
+	ROLLBACK_SUBPATH="$SUBPATH"
 	git rm -r "$SUBPATH"
 
 	git submodule add \
+		-f \
 		-b main \
 		"$URL" \
 		"$SUBPATH"
+	ROLLBACK_SUBPATH=""
+
+	restore_ignored_content "$SUBPATH"
 
 	git -C "$SUBPATH" switch main
 	git config -f .gitmodules \
 		"submodule.$SUBPATH.branch" \
 		main
 
-	git add .gitmodules
-	git add "$SUBPATH"
-
-	git \
-		-c core.hooksPath=/dev/null \
-		commit \
-		--only \
-		-m "Convert $SUBPATH to submodule" \
-		-- .gitmodules "$SUBPATH"
+	commit_submodule_conversion "$SUBPATH"
 
 	install_detached_head_hook "$SUBPATH"
 }
