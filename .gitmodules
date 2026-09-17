@@ -1,3 +1,7 @@
 [submodule "submodules/jaison"]
 	path = submodules/jaison
 	url = https://github.com/rluba/jaison.git
+[submodule "modules/Bucket_Allocator"]
+	path = modules/Bucket_Allocator
+	url = https://github.com/GufNZ/JaiModules-Bucket_Allocator.git
+	branch = main
