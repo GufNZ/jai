@@ -5,3 +5,7 @@
 	path = modules/Bucket_Allocator
 	url = https://github.com/GufNZ/JaiModules-Bucket_Allocator.git
 	branch = main
+[submodule "modules/Units"]
+	path = modules/Units
+	url = https://github.com/GufNZ/JaiModules-Units.git
+	branch = main
