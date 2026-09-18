@@ -101,6 +101,69 @@ ensure_filter_repo() {
 	fi
 }
 
+bootstrap_usage() {
+	error "Usage:"
+	error "	$0"
+	error "	$0 directory"
+	exit 1
+}
+
+validate_normal_directory() {
+	local SUBPATH="$1"
+	local DIRECTORY_ROOT
+	local NORMALIZED_SUBPATH
+
+	if [ -z "$SUBPATH" ] || \
+		[ ! -d "$SUBPATH" ] || \
+		[[ "$SUBPATH" = *'|'* ]] || \
+		[[ "$SUBPATH" = *$'\n'* ]] || \
+		[[ "$SUBPATH" = *$'\r'* ]]; then
+		bootstrap_usage
+	fi
+
+
+	DIRECTORY_ROOT="$(git -C "$SUBPATH" rev-parse --show-toplevel 2>/dev/null)" || bootstrap_usage
+	NORMALIZED_SUBPATH="$(git -C "$SUBPATH" rev-parse --show-prefix 2>/dev/null)" || bootstrap_usage
+	NORMALIZED_SUBPATH="${NORMALIZED_SUBPATH%/}"
+
+
+	if [ -z "$NORMALIZED_SUBPATH" ] || [ "$DIRECTORY_ROOT" != "$ROOT" ] || is_submodule "$NORMALIZED_SUBPATH"; then
+		bootstrap_usage
+	fi
+
+
+	printf '%s\n' "$NORMALIZED_SUBPATH"
+}
+
+add_conf_entry() {
+	local SUBPATH="$1"
+	local URL
+
+	SUBPATH="$(validate_normal_directory "$SUBPATH")"
+
+	if [ -f "$CONF" ] && awk -F '|' -v path="$SUBPATH" '$1 == path { found = 1 } END { exit !found }' "$CONF"; then
+		error "Directory is already configured:"
+		error "	$SUBPATH"
+		exit 1
+	fi
+
+
+	normal "Create EMPTY GitHub repository:"
+	prompt "Git URL: "
+	read -r URL
+
+	if [ -z "$URL" ] || \
+		[[ "$URL" = *'|'* ]] || \
+		[[ "$URL" = *$'\n'* ]] || \
+		[[ "$URL" = *$'\r'* ]]; then
+		error "No valid URL supplied."
+		exit 1
+	fi
+
+
+	printf '%s|%s\n' "$SUBPATH" "$URL" >> "$CONF"
+}
+
 create_conf_if_missing() {
 	if [ -f "$CONF" ]; then
 		return
@@ -118,17 +181,7 @@ create_conf_if_missing() {
 	fi
 
 
-	normal "Create EMPTY GitHub repository:"
-	prompt "Git URL: "
-	read -r URL
-
-	if [ -z "$URL" ]; then
-		error "No URL supplied."
-		exit 1
-	fi
-
-
-	printf '%s|%s\n' "$SUBPATH" "$URL" > "$CONF"
+	add_conf_entry "$SUBPATH"
 }
 
 install_commit_script() {
@@ -834,7 +887,15 @@ extract_submodule() {
 	install_detached_head_hook "$SUBPATH"
 }
 
-create_conf_if_missing
+if [ $# -gt 1 ]; then
+	bootstrap_usage
+fi
+
+if [ $# -eq 1 ]; then
+	add_conf_entry "$1"
+else
+	create_conf_if_missing
+fi
 
 install_commit_script
 
@@ -861,7 +922,6 @@ do
 
 
 	extract_submodule "$SUBPATH" "$URL"
-
 done 3< "$CONF"
 
 install_commit_hook
