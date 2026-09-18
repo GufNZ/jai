@@ -444,17 +444,21 @@ do
 	fi
 done 3< "$CONF"
 
-if ! git diff --cached --quiet || [ "$SUBMODULE_COMMITTED" -eq 1 ]; then
-	normal "Creating parent commit..."
-
-	git \
-		-c core.hooksPath=/dev/null \
-		commit -m "$MESSAGE"
-
-	git push
-else
-	normal "Nothing to commit."
+if [ "$SUBMODULE_COMMITTED" -eq 0 ]; then
+	normal "No submodule changes; continuing normal commit."
+	rm -f "$FAILED_FILE"
+	COMPLETED=1
+	exit 0
 fi
+
+
+normal "Creating parent commit..."
+
+git \
+	-c core.hooksPath=/dev/null \
+	commit -m "$MESSAGE"
+
+git push
 
 rm -f "$FAILED_FILE"
 touch "$SUCCESS_FILE"
@@ -691,6 +695,7 @@ if ! "$ROOT/.repo-tools/commit-all.sh" -f "$1"; then
 	exit 1
 fi
 
+
 if [ -f "$SUCCESS_FILE" ]; then
 	normal "========================================"
 	normal "Commit completed via commit-all."
@@ -701,11 +706,7 @@ if [ -f "$SUCCESS_FILE" ]; then
 fi
 
 
-error "========================================"
-error "commit-all did not create its success marker."
-error "========================================"
-
-exit 1
+exit 0
 EOF
 
 	chmod +x "$HOOK"
