@@ -4,7 +4,7 @@ A module to define types representing various combinations of SI units, and oper
 
 ### Overview
 
-The Units module provides compile-time unit type safety with zero runtime overhead.  Unit types are parameterized by:
+The `Units` module provides compile-time unit type safety with zero runtime overhead.  Unit types are parameterized by:
 
 - **Exponents** (Exp) - dimensional power (e.g., 2 for m²)
 - **Ratios** (Num/Denom) - scale factors (e.g., Num=1000 for kilometers)
