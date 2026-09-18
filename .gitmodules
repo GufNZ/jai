@@ -13,3 +13,7 @@
 	path = modules/AST_Utils
 	url = https://github.com/GufNZ/JaiModules-AST_Utils.git
 	branch = main
+[submodule "modules/Jai_Parser"]
+	path = modules/Jai_Parser
+	url = https://github.com/GufNZ/JaiModules-Jai_Parser.git
+	branch = main
