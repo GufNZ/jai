@@ -9,3 +9,7 @@
 	path = modules/Units
 	url = https://github.com/GufNZ/JaiModules-Units.git
 	branch = main
+[submodule "modules/AST_Utils"]
+	path = modules/AST_Utils
+	url = https://github.com/GufNZ/JaiModules-AST_Utils.git
+	branch = main
