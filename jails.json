@@ -3,9 +3,8 @@
 		"modules"
 	],
 	"roots": [
-		"tests.jai",
-		"units.jai"
+		"modules/Jai_Parser/examples/parser_tokens_test.jai"
 	],
-	"build_root": "tests.jai",
+	"build_root": "modules/Jai_Parser/examples/parser_tokens_test.jai",
 	"auto_insert_parentheses": false
 }
