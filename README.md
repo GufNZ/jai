@@ -20,12 +20,12 @@ Details: [Bucket Allocator module](https://github.com/GufNZ/JaiModules-Bucket_Al
 ## Coming soon:
 ### Units
 
-Currently WIP and also stuck behind a compiler bug.
+Currently, WIP and also stuck behind a compiler bug.
 
 Details: [Units module](https://github.com/GufNZ/JaiModules-Units).
 
 ### Jai_Parser
 
-Currently WIP - lexer done but parser still being built.
+Currently, WIP - lexer done but parser still being built.
 
 Details: [Jai_Parser module](https://github.com/GufNZ/JaiModules-Jai_Parser)
