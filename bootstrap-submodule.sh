@@ -418,8 +418,8 @@ do
 		normal "1) Abort"
 		normal "2) Stage everything and continue"
 
-		read_choice 1 \
-			"No interactive input available; stage the submodule changes or run commit-all.sh from a terminal."
+		read_choice 2 \
+			"No interactive input available; staging everything here first."
 		case "$CHOICE" in
 			2)
 				submodule_git "$SUBMODULE" add -A
