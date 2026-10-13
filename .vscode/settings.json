@@ -1,0 +1,10 @@
+{
+	"chat.tools.terminal.autoApprove": {
+		"./clean_build_artifacts.sh": true,
+		"jai": true,
+		"./differential_test.exe": true,
+		"./parser_tokens_test.exe": true,
+		"./parse_how_to.exe": true,
+		"./differential_runner.exe": true
+	}
+}
