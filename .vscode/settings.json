@@ -5,6 +5,8 @@
 		"./differential_test.exe": true,
 		"./parser_tokens_test.exe": true,
 		"./parse_how_to.exe": true,
-		"./differential_runner.exe": true
+		"./differential_runner.exe": true,
+		"./layout_test.exe": true,
+		"./lex_all_files.exe": true
 	}
 }
