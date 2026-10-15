@@ -146,3 +146,14 @@ PBO
 Sysinternals
 Coreinfo
 warmup
+ReSharper-like
+subprocesses
+filesystem
+non-persistable
+cacheable
+vendored
+reorderings
+subprocess
+uncached
+filesystem
+filesystem
