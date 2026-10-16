@@ -159,3 +159,12 @@ filesystem
 filesystem
 filesystem
 freelist
+reentrancy
+toolchain
+mmap
+filepath
+non-stallable
+stallable
+entrypoints
+bool
+dir
