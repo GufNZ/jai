@@ -168,3 +168,8 @@ stallable
 entrypoints
 bool
 dir
+filesystem-equivalent
+ReFS
+basename
+basename-dependent
+Hardlinks
