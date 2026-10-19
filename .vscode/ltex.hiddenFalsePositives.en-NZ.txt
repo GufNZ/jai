@@ -550,3 +550,9 @@
 {"rule":"EN_A_VS_AN","sentence":"^\\QLater a subprocess backend can wrap supported snippets and use the official compiler (on generated source with build options including do_output=false and an \\E(?:Dummy|Ina|Jimmy-|Dummy-|Maniquí-|Maniquíes-|Atrapa-|Dummy\\+|Dummy's\\+)[0-9]+\\Q in it, then reading back the \\E(?:Dummy|Ina|Jimmy-|Dummy-|Maniquí-|Maniquíes-|Atrapa-|Dummy\\+|Dummy's\\+)[0-9]+\\Q file(s)); eventually a bootstrapped language-service backend may interpret the corresponding AST.\\E$"}
 {"rule":"POSSESSIVE_APOSTROPHE","sentence":"^\\QFor a full rerun after cleanup, first run the runner to create targets; if native symlink setup is denied, the user can prepare these five links in an elevated PowerShell opened in the examples directory, then rerun the compiler command normally:\\E$"}
 {"rule":"EN_A_VS_AN","sentence":"^\\QThe child file contains both an \\E(?:Dummy|Ina|Jimmy-|Dummy-|Maniquí-|Maniquíes-|Atrapa-|Dummy\\+|Dummy's\\+)[0-9]+\\Q record and its nested insert result.\\E$"}
+{"rule":"PASSED_PAST","sentence":"^\\QAll 34 scheduling runs passed 844 authored expectation/invariant checks.\\E$"}
+{"rule":"PASSED_PAST","sentence":"^\\QAll 34 scheduling runs passed, 844 authored expectation/invariant checks.\\E$"}
+{"rule":"POSSESSIVE_APOSTROPHE","sentence":"^\\QThe limits artifact is about 224.5 times its tiny source size; its slower decode demonstrates payload/hex-volume cost, not a representative cache regression.\\E$"}
+{"rule":"EN_WORD_COHERENCY","sentence":"^\\QObserved optimised results:\\E$"}
+{"rule":"EN_A_VS_AN","sentence":"^\\QThe prototype stores exact UTF-8 source as Base64 in JSON, a SHA-256 source digest, a fixed context/schema, and a small byte/line-count projection.\\E$"}
+{"rule":"HYPHEN_TO_EN","sentence":"^\\QResident median savings are about 9-27 times on the four real inventories; their source-reparse controls are about 1.12-1.34 times slower than fresh parsing.\\E$"}

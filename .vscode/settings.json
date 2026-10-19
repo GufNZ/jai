@@ -12,6 +12,22 @@
 		"./.build/parser_tokens_test.exe": true,
 		"./.build/parse_how_to.exe": true,
 		"./.build/truthiness_tests.exe": true,
-		"./.build/differential_runner.exe": true
+		"./.build/differential_runner.exe": true,
+		"./.build/experiment_dependency_revisions.exe": true,
+		"./.build/experiment_pipeline_scheduler.exe": true,
+		"./.build/experiment_allocation_eviction.exe": true,
+		"./.build/experiment_allocation_eviction_llvm.exe": true,
+		"./.build/experiment_text_artifacts.exe": true,
+		"./.build/experiment_text_artifacts_llvm.exe": true,
+		"pushd": true,
+		"./experiment_text_artifacts_portable.exe": true,
+		"popd": true,
+		"./experiment_allocation_eviction_portable.exe": true,
+		"./.build/benchmark_ast_reuse_portable.exe": true,
+		"./.build/lex_all_files_portable.exe": true,
+		"./experiment_pipeline_scheduler.exe": true,
+		"./.build/experiment_project_baseline.exe": true,
+		"./.build/e12_oracle_verify.exe": true,
+		"./.build/experiment_snapshot_codec.exe": true
 	}
 }
