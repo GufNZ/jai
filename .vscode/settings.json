@@ -7,6 +7,11 @@
 		"./parse_how_to.exe": true,
 		"./differential_runner.exe": true,
 		"./layout_test.exe": true,
-		"./lex_all_files.exe": true
+		"./lex_all_files.exe": true,
+		"./.build/experiment_syntax_independence.exe": true,
+		"./.build/parser_tokens_test.exe": true,
+		"./.build/parse_how_to.exe": true,
+		"./.build/truthiness_tests.exe": true,
+		"./.build/differential_runner.exe": true
 	}
 }
