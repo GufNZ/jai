@@ -30,6 +30,7 @@
 		"./.build/e12_oracle_verify.exe": true,
 		"./.build/experiment_snapshot_codec.exe": true,
 		"./.build/layout_test.exe": true,
-		"./.build/verify_ast_reuse.exe": true
+		"./.build/verify_ast_reuse.exe": true,
+		"./code_field_inventory.exe": true
 	}
 }
