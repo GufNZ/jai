@@ -301,3 +301,5 @@ subcases
 inequivalent
 Subcases
 multiwriter
+compiler-subprocess
+Nonreuse
