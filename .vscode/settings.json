@@ -31,6 +31,10 @@
 		"./.build/experiment_snapshot_codec.exe": true,
 		"./.build/layout_test.exe": true,
 		"./.build/verify_ast_reuse.exe": true,
-		"./code_field_inventory.exe": true
+		"./code_field_inventory.exe": true,
+		"Grep": true,
+		"uniq": true,
+		"awk": true,
+		"comm": true
 	}
 }

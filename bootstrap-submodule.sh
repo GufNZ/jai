@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+#//QUESTION: can we detect commit vs commit+push?  Do we need a on-push hook?
 set -e
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -212,8 +212,9 @@ CONF="submodules.conf"
 
 GITDIR="$(git rev-parse --git-dir)"
 
-SUCCESS_FILE="$GITDIR/commit-all-success"
 FAILED_FILE="$GITDIR/commit-all-failed"
+LOCKFILE="$GITDIR/commit-all-active"
+AMEND_FILE="$GITDIR/commit-all-amend"
 
 NORMAL=$'\e[96m'
 WARNING=$'\e[93m'
@@ -268,7 +269,7 @@ submodule_git() {
 	)
 }
 
-rm -f "$SUCCESS_FILE" "$FAILED_FILE"
+rm -f "$FAILED_FILE" "$AMEND_FILE"
 
 COMPLETED=0
 
@@ -333,7 +334,7 @@ if [ ! -f "$CONF" ]; then
 fi
 
 
-SUBMODULE_COMMITTED=0
+COMMITTED_SUBMODULES=()
 
 while IFS='|' read -r SUBMODULE _URL <&3
 do
@@ -439,13 +440,22 @@ do
 			commit -m "$MESSAGE"
 
 		submodule_git "$SUBMODULE" push
-		git add "$SUBMODULE"
-		SUBMODULE_COMMITTED=1
+		COMMITTED_SUBMODULES+=("$SUBMODULE")
 	fi
 done 3< "$CONF"
 
-if [ "$SUBMODULE_COMMITTED" -eq 0 ]; then
+if [ "${#COMMITTED_SUBMODULES[@]}" -eq 0 ]; then
 	normal "No submodule changes; continuing normal commit."
+	rm -f "$FAILED_FILE"
+	COMPLETED=1
+	exit 0
+fi
+
+
+# The parent tree is fixed before commit-msg runs, so post-commit amends in the new pointers.
+if [ -f "$LOCKFILE" ]; then
+	printf '%s\n' "${COMMITTED_SUBMODULES[@]}" > "$AMEND_FILE"
+	normal "Submodules committed; continuing normal commit."
 	rm -f "$FAILED_FILE"
 	COMPLETED=1
 	exit 0
@@ -454,6 +464,8 @@ fi
 
 normal "Creating parent commit..."
 
+git add -- "${COMMITTED_SUBMODULES[@]}"
+
 git \
 	-c core.hooksPath=/dev/null \
 	commit -m "$MESSAGE"
@@ -461,7 +473,6 @@ git \
 git push
 
 rm -f "$FAILED_FILE"
-touch "$SUCCESS_FILE"
 COMPLETED=1
 EOF
 
@@ -650,13 +661,8 @@ install_commit_hook() {
 #!/usr/bin/env bash
 # Installed by bootstrap-submodule.sh
 
-NORMAL=$'\e[96m'
 ERROR=$'\e[91m'
 RESET=$'\e[0m'
-
-normal() {
-	printf '%b%s%b\n' "$NORMAL" "$*" "$RESET"
-}
 
 error() {
 	printf '%b%s%b\n' "$ERROR" "$*" "$RESET" >&2
@@ -664,16 +670,11 @@ error() {
 
 LOCKFILE="$(git rev-parse --git-dir)/commit-all-active"
 
-SUCCESS_FILE="$(git rev-parse --git-dir)/commit-all-success"
-
-FAILED_FILE="$(git rev-parse --git-dir)/commit-all-failed"
-
 if [ -f "$LOCKFILE" ]; then
 	exit 0
 fi
 
 
-rm -f "$SUCCESS_FILE" "$FAILED_FILE"
 touch "$LOCKFILE"
 
 trap '
@@ -696,17 +697,75 @@ if ! "$ROOT/.repo-tools/commit-all.sh" -f "$1"; then
 fi
 
 
-if [ -f "$SUCCESS_FILE" ]; then
-	normal "========================================"
-	normal "Commit completed via commit-all."
-	normal "Refresh GitExtensions."
-	normal "========================================"
+exit 0
+EOF
 
-	exit 1
+	chmod +x "$HOOK"
+}
+
+install_post_commit_hook() {
+	local HOOKS_DIR
+	local HOOK
+	local USER_HOOK
+
+	HOOKS_DIR="$(git rev-parse --git-path hooks)"
+	HOOK="$HOOKS_DIR/post-commit"
+	USER_HOOK="$HOOKS_DIR/post-commit.user"
+
+	mkdir -p "$HOOKS_DIR"
+
+	if [ -f "$HOOK" ] && \
+		! grep -q '^# Installed by bootstrap-submodule.sh$' "$HOOK"; then
+		if [ -e "$USER_HOOK" ]; then
+			error "Cannot preserve existing post-commit hook:"
+			error "	$USER_HOOK already exists."
+			exit 1
+		fi
+
+
+		mv "$HOOK" "$USER_HOOK"
+		warning "Preserved existing post-commit hook as:"
+		warning "	$USER_HOOK"
+	fi
+
+
+	cat > "$HOOK" <<'EOF'
+#!/usr/bin/env bash
+# Installed by bootstrap-submodule.sh
+
+ERROR=$'\e[91m'
+RESET=$'\e[0m'
+
+error() {
+	printf '%b%s%b\n' "$ERROR" "$*" "$RESET" >&2
+}
+
+AMEND_FILE="$(git rev-parse --git-dir)/commit-all-amend"
+HOOKS_DIR="$(cd "$(dirname "$0")" && pwd)"
+USER_HOOK="$HOOKS_DIR/post-commit.user"
+
+if [ -f "$AMEND_FILE" ]; then
+	mapfile -t SUBMODULES < "$AMEND_FILE"
+	rm -f "$AMEND_FILE"
+
+	if ! env -u GIT_INDEX_FILE git \
+		-c core.hooksPath=/dev/null \
+		commit \
+		--quiet \
+		--amend \
+		--no-edit \
+		--only \
+		-- "${SUBMODULES[@]}"; then
+		error "Failed to amend updated submodule commits into the parent commit:"
+		error "	${SUBMODULES[*]}"
+		error "Stage them and run: git commit --amend --no-edit"
+	fi
 fi
 
 
-exit 0
+if [ -x "$USER_HOOK" ]; then
+	"$USER_HOOK" "$@"
+fi
 EOF
 
 	chmod +x "$HOOK"
@@ -926,5 +985,6 @@ do
 done 3< "$CONF"
 
 install_commit_hook
+install_post_commit_hook
 
 normal "Done."
