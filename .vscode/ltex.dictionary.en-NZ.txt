@@ -305,3 +305,6 @@ compiler-subprocess
 Nonreuse
 default-metaprogram
 Fowler-Noll-Vo
+Jai-style
+evictable
+evictable
