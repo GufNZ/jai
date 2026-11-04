@@ -35,6 +35,9 @@
 		"Grep": true,
 		"uniq": true,
 		"awk": true,
-		"comm": true
+		"comm": true,
+		"time": true,
+		"./cache_acceptance.exe": true,
+		"./cache_acceptance_llvm.exe": true
 	}
 }
