@@ -38,6 +38,8 @@
 		"comm": true,
 		"time": true,
 		"./cache_acceptance.exe": true,
-		"./cache_acceptance_llvm.exe": true
+		"./cache_acceptance_llvm.exe": true,
+		"./experiment_text_artifacts.exe": true,
+		"./service_foundations_test.exe": true
 	}
 }
