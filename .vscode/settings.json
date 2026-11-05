@@ -40,6 +40,15 @@
 		"./cache_acceptance.exe": true,
 		"./cache_acceptance_llvm.exe": true,
 		"./experiment_text_artifacts.exe": true,
-		"./service_foundations_test.exe": true
+		"./service_foundations_test.exe": true,
+		"./service_snapshot_test.exe": true,
+		"./service_snapshot_test_llvm.exe": true,
+		"./service_foundations_test_llvm.exe": true,
+		"printf": true,
+		"timeout": true,
+		"./slice_repro.exe": true,
+		"tasklist": true,
+		"mv": true,
+		"./service_context_test.exe": true
 	}
 }
