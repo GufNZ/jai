@@ -49,6 +49,12 @@
 		"./slice_repro.exe": true,
 		"tasklist": true,
 		"mv": true,
-		"./service_context_test.exe": true
+		"./service_context_test.exe": true,
+		"./service_provider_test.exe": true,
+		"set": true,
+		"return": true,
+		"check_suites": true,
+		"check_llvm": true,
+		"check_llvm_remaining": true
 	}
 }
