@@ -310,3 +310,13 @@ evictable
 evictable
 chunkings
 Enum-like
+autocasts
+strict-bool
+nonemptiness
+namespaced
+sparse-enum
+enum-size
+mutexes
+autocast
+recoverably
+cleanup-job

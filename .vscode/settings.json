@@ -55,6 +55,7 @@
 		"return": true,
 		"check_suites": true,
 		"check_llvm": true,
-		"check_llvm_remaining": true
+		"check_llvm_remaining": true,
+		"exit": true
 	}
 }
