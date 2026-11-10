@@ -320,3 +320,8 @@ mutexes
 autocast
 recoverably
 cleanup-job
+partial-cleanup
+scrollback
+deallocation
+cleanup-time
+post-cleanup
