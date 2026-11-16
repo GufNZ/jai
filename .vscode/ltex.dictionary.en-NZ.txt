@@ -325,3 +325,5 @@ scrollback
 deallocation
 cleanup-time
 post-cleanup
+edit-cleanup
+pool-cleanup
