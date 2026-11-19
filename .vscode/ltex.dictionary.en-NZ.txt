@@ -327,3 +327,7 @@ cleanup-time
 post-cleanup
 edit-cleanup
 pool-cleanup
+cleanup-reentry
+nonallocating
+task-cleanup
+noncompletion
