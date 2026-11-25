@@ -60,6 +60,7 @@
 		"verify_service_backend": true,
 		"verify_heap_service_backend": true,
 		"./run_all_tests\\.sh": true,
-		"./run_all_tests.sh": true
+		"./run_all_tests.sh": true,
+		"type": true
 	}
 }
