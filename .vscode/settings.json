@@ -61,6 +61,9 @@
 		"verify_heap_service_backend": true,
 		"./run_all_tests\\.sh": true,
 		"./run_all_tests.sh": true,
-		"type": true
+		"type": true,
+		"diff": true,
+		"./service_coordinator_test.exe": true,
+		"./service_worker_test.exe": true
 	}
 }
